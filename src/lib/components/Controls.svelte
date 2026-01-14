@@ -22,36 +22,40 @@
 	style:--accent-color={theme.orp}
 	style:--border-color={theme.guideLines}
 >
-	<button
-		class="control-btn"
-		onclick={() => reader.goToStart()}
-		disabled={atStart || noDocument}
-		aria-label="Go to start"
-		title="Go to start (Home)"
-	>
-		<span class="btn-icon">|◀</span>
-	</button>
+	<!-- Navigation back group -->
+	<div class="control-group back-group">
+		<button
+			class="control-btn"
+			onclick={() => reader.goToStart()}
+			disabled={atStart || noDocument}
+			aria-label="Go to start"
+			title="Go to start (Home)"
+		>
+			<span class="btn-icon">|◀</span>
+		</button>
 
-	<button
-		class="control-btn"
-		onclick={() => reader.prevPage()}
-		disabled={atStart || noDocument}
-		aria-label="Previous page"
-		title="Previous page (Page Up)"
-	>
-		<span class="btn-icon">◀◀</span>
-	</button>
+		<button
+			class="control-btn"
+			onclick={() => reader.prevPage()}
+			disabled={atStart || noDocument}
+			aria-label="Previous page"
+			title="Previous page (Page Up)"
+		>
+			<span class="btn-icon">◀◀</span>
+		</button>
 
-	<button
-		class="control-btn"
-		onclick={() => reader.prevWord()}
-		disabled={atStart || noDocument}
-		aria-label="Previous word"
-		title="Previous word (←)"
-	>
-		<span class="btn-icon">◀</span>
-	</button>
+		<button
+			class="control-btn"
+			onclick={() => reader.prevWord()}
+			disabled={atStart || noDocument}
+			aria-label="Previous word"
+			title="Previous word (←)"
+		>
+			<span class="btn-icon">◀</span>
+		</button>
+	</div>
 
+	<!-- Play/pause button -->
 	<button
 		class="control-btn play-btn"
 		onclick={() => reader.toggle()}
@@ -62,35 +66,38 @@
 		<span class="btn-icon">{playing ? '❚❚' : '▶'}</span>
 	</button>
 
-	<button
-		class="control-btn"
-		onclick={() => reader.nextWord()}
-		disabled={atEnd || noDocument}
-		aria-label="Next word"
-		title="Next word (→)"
-	>
-		<span class="btn-icon">▶</span>
-	</button>
+	<!-- Navigation forward group -->
+	<div class="control-group forward-group">
+		<button
+			class="control-btn"
+			onclick={() => reader.nextWord()}
+			disabled={atEnd || noDocument}
+			aria-label="Next word"
+			title="Next word (→)"
+		>
+			<span class="btn-icon">▶</span>
+		</button>
 
-	<button
-		class="control-btn"
-		onclick={() => reader.nextPage()}
-		disabled={atEnd || noDocument}
-		aria-label="Next page"
-		title="Next page (Page Down)"
-	>
-		<span class="btn-icon">▶▶</span>
-	</button>
+		<button
+			class="control-btn"
+			onclick={() => reader.nextPage()}
+			disabled={atEnd || noDocument}
+			aria-label="Next page"
+			title="Next page (Page Down)"
+		>
+			<span class="btn-icon">▶▶</span>
+		</button>
 
-	<button
-		class="control-btn"
-		onclick={() => reader.goToEnd()}
-		disabled={atEnd || noDocument}
-		aria-label="Go to end"
-		title="Go to end (End)"
-	>
-		<span class="btn-icon">▶|</span>
-	</button>
+		<button
+			class="control-btn"
+			onclick={() => reader.goToEnd()}
+			disabled={atEnd || noDocument}
+			aria-label="Go to end"
+			title="Go to end (End)"
+		>
+			<span class="btn-icon">▶|</span>
+		</button>
+	</div>
 </div>
 
 <style>
@@ -98,9 +105,15 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.75rem;
 		padding: 1rem;
 		flex-wrap: wrap;
+	}
+
+	.control-group {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
 	}
 
 	.control-btn {
@@ -158,10 +171,44 @@
 		line-height: 1;
 	}
 
-	@media (max-width: 640px) {
+	/* Mobile: Stack layout with play button in center row */
+	@media (max-width: 480px) {
 		.controls {
-			gap: 0.375rem;
+			display: grid;
+			grid-template-columns: 1fr;
+			grid-template-rows: auto auto auto;
+			gap: 0.75rem;
 			padding: 0.75rem;
+			justify-items: center;
+		}
+
+		.control-group {
+			gap: 0.5rem;
+		}
+
+		.control-btn {
+			min-width: 2.75rem;
+			min-height: 2.75rem;
+			padding: 0.5rem;
+			font-size: 1rem;
+		}
+
+		.control-btn.play-btn {
+			min-width: 4rem;
+			min-height: 4rem;
+			font-size: 1.5rem;
+		}
+	}
+
+	/* Tablet/small screens: Single row but with spacing */
+	@media (min-width: 481px) and (max-width: 640px) {
+		.controls {
+			gap: 0.5rem;
+			padding: 0.75rem;
+		}
+
+		.control-group {
+			gap: 0.375rem;
 		}
 
 		.control-btn {
