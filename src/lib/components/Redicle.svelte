@@ -1,16 +1,20 @@
 <script lang="ts">
 	import { splitWordAtORP } from '../utils/orp';
-	import { currentWordText, reader } from '../stores/reader';
+	import { currentWord, reader } from '../stores/reader';
 	import { currentTheme, settings } from '../stores/settings';
 
 	// Derived store values
-	const word = $derived($currentWordText);
+	const word = $derived($currentWord);
 	const theme = $derived($currentTheme);
 	const fontSize = $derived($settings.fontSize);
 	const fontFamily = $derived($settings.fontFamily);
 
 	// Split word into ORP parts
-	const parts = $derived(splitWordAtORP(word));
+	const parts = $derived(splitWordAtORP(word?.text ?? ''));
+
+	// Formatting
+	const isItalic = $derived(word?.italic ?? false);
+	const isBold = $derived(word?.bold ?? false);
 
 	// Handle click to toggle play/pause
 	function handleClick() {
@@ -48,7 +52,7 @@
 
 		<!-- Word display with ORP alignment -->
 		<div class="word-container">
-			<div class="word-display">
+			<div class="word-display" class:italic={isItalic} class:bold={isBold}>
 				<span class="before-orp">{parts.before}</span>
 				<span class="orp-letter">{parts.orp}</span>
 				<span class="after-orp">{parts.after}</span>
@@ -170,6 +174,19 @@
 		overflow: hidden;
 		text-overflow: clip;
 		justify-self: start;
+	}
+
+	/* Formatting styles */
+	.word-display.italic {
+		font-style: italic;
+	}
+
+	.word-display.bold {
+		font-weight: 700;
+	}
+
+	.word-display.bold .orp-letter {
+		font-weight: 900;
 	}
 
 	@media (max-width: 768px) {

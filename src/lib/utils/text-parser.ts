@@ -1,10 +1,12 @@
 /**
- * Represents a parsed word with its position information.
+ * Represents a parsed word with its position and formatting information.
  */
 export interface ParsedWord {
 	text: string;
 	paragraphIndex: number;
 	pageIndex: number;
+	italic?: boolean;
+	bold?: boolean;
 }
 
 /**

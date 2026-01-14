@@ -29,6 +29,51 @@ function splitOnDashes(word: string): string[] {
 	return result.filter(w => w.length > 0);
 }
 
+interface FormattedWord {
+	text: string;
+	italic: boolean;
+	bold: boolean;
+}
+
+/**
+ * Extract words from a DOM element while preserving italic/bold formatting.
+ */
+function extractFormattedWords(element: Element): FormattedWord[] {
+	const words: FormattedWord[] = [];
+
+	function walk(node: Node, italic: boolean, bold: boolean) {
+		if (node.nodeType === Node.TEXT_NODE) {
+			const text = node.textContent || '';
+			const rawWords = text.split(/\s+/).filter(w => w.length > 0);
+			const splitWords = rawWords.flatMap(splitOnDashes);
+
+			for (const word of splitWords) {
+				words.push({ text: word, italic, bold });
+			}
+		} else if (node.nodeType === Node.ELEMENT_NODE) {
+			const el = node as Element;
+			const tagName = el.tagName.toLowerCase();
+
+			// Check for formatting tags
+			const isItalic = italic || tagName === 'i' || tagName === 'em';
+			const isBold = bold || tagName === 'b' || tagName === 'strong';
+
+			// Skip script and style tags
+			if (tagName === 'script' || tagName === 'style') {
+				return;
+			}
+
+			// Recurse into children
+			for (const child of Array.from(node.childNodes)) {
+				walk(child, isItalic, isBold);
+			}
+		}
+	}
+
+	walk(element, false, false);
+	return words;
+}
+
 /**
  * Extended parsed document with EPUB-specific information.
  */
@@ -147,23 +192,19 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 				continue;
 			}
 
-			// Extract text from HTML content
-			let textContent = '';
-			if (typeof contents === 'string') {
-				textContent = stripHtml(contents);
-			} else if (contents instanceof Document) {
-				textContent = contents.body?.textContent || '';
-			} else if (contents instanceof Element) {
-				// HTMLHtmlElement or other Element - find body in various ways
+			// Extract words with formatting from content
+			let formattedWords: FormattedWord[] = [];
+
+			if (contents instanceof Element) {
+				// HTMLHtmlElement or other Element - find body and extract formatted words
 				const el = contents as Element;
-				let bodyEl = el.querySelector('body');
+				let bodyEl: Element | null = el.querySelector('body');
 
 				// If querySelector fails (XHTML namespace issues), try other methods
 				if (!bodyEl) {
 					bodyEl = el.getElementsByTagName('body')[0] || null;
 				}
 				if (!bodyEl && el.children) {
-					// Body is usually the second child of html element (after head)
 					for (let i = 0; i < el.children.length; i++) {
 						if (el.children[i].tagName.toLowerCase() === 'body') {
 							bodyEl = el.children[i];
@@ -172,31 +213,37 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 					}
 				}
 
-				textContent = bodyEl?.textContent || el.textContent || '';
-			} else if (contents && typeof (contents as any).documentElement !== 'undefined') {
-				// Handle XMLDocument
-				textContent = (contents as any).body?.textContent || (contents as any).documentElement?.textContent || '';
-			} else if (contents && typeof (contents as any).textContent === 'string') {
-				// Fallback: any object with textContent
-				textContent = (contents as any).textContent || '';
+				// Extract formatted words from body (or whole element if no body)
+				formattedWords = extractFormattedWords(bodyEl || el);
+			} else if (contents instanceof Document) {
+				if (contents.body) {
+					formattedWords = extractFormattedWords(contents.body);
+				}
+			} else if (typeof contents === 'string') {
+				// Plain string - strip HTML and split (no formatting)
+				const textContent = stripHtml(contents);
+				const rawWords = textContent.split(/\s+/).filter(w => w.length > 0);
+				formattedWords = rawWords.flatMap(splitOnDashes).map(text => ({
+					text,
+					italic: false,
+					bold: false
+				}));
+			} else {
+				// Fallback: try to get textContent
+				const textContent = (contents as any)?.textContent || '';
+				const rawWords = textContent.split(/\s+/).filter((w: string) => w.length > 0);
+				formattedWords = rawWords.flatMap(splitOnDashes).map((text: string) => ({
+					text,
+					italic: false,
+					bold: false
+				}));
 			}
 
-			// Split into paragraphs
-			const sectionParagraphs = textContent
-				.split(/\n\s*\n/)
-				.map(p => p.trim())
-				.filter(p => p.length > 0);
-
-			for (const paragraph of sectionParagraphs) {
+			// Mark section as a paragraph
+			if (formattedWords.length > 0) {
 				paragraphStarts.push(wordIndex);
 
-				// Split on whitespace, then further split on em-dashes
-				const rawWords = paragraph
-					.split(/\s+/)
-					.filter(w => w.length > 0);
-				const paragraphWords = rawWords.flatMap(splitOnDashes);
-
-				for (const wordText of paragraphWords) {
+				for (const fw of formattedWords) {
 					// Check for page break (every 250 words)
 					if (wordIndex > 0 && wordIndex % 250 === 0) {
 						currentPage++;
@@ -204,9 +251,11 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 					}
 
 					words.push({
-						text: wordText,
+						text: fw.text,
 						paragraphIndex,
-						pageIndex: currentPage
+						pageIndex: currentPage,
+						italic: fw.italic || undefined,
+						bold: fw.bold || undefined
 					});
 
 					wordIndex++;
