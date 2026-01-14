@@ -114,7 +114,7 @@
 >
 	<header class="header">
 		<div class="header-left">
-			<h1 class="logo">RSVP Reader</h1>
+			<h1 class="logo">QuickReader</h1>
 			{#if docLoaded && title}
 				<span class="doc-info">
 					{title}
@@ -152,8 +152,8 @@
 	<main class="main" class:with-preview={docLoaded && previewVisible} style:--preview-width="{previewWidth}%">
 		{#if !docLoaded}
 			<div class="welcome">
-				<h2>Welcome to RSVP Speed Reader</h2>
-				<p>Load an EPUB or text file to start reading.</p>
+				<h2>Welcome to QuickReader</h2>
+				<p>Load an EPUB, PDF, or text file to start speed reading.</p>
 				<p class="hint">Click "Open File" above to get started.</p>
 				<div class="keyboard-hints">
 					<h3>Keyboard Shortcuts</h3>
