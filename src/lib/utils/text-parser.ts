@@ -22,11 +22,22 @@ export interface ParsedDocument {
 }
 
 /**
- * Split a word on em-dashes, en-dashes, and ellipsis, keeping the punctuation with the first word.
+ * Split a word on em-dashes, en-dashes, ellipsis, and long hyphenated compounds.
  * "consciousness—seemed" becomes ["consciousness—", "seemed"]
  * "delusion…created" becomes ["delusion…", "created"]
+ * "forty-nine-year-old" (3+ hyphens) becomes ["forty-", "nine-", "year-", "old"]
+ * "forty-nine" (2 parts) stays as "forty-nine"
  */
 function splitOnDashes(word: string): string[] {
+	// First check for long hyphenated compounds (3+ parts)
+	const hyphenParts = word.split('-');
+	if (hyphenParts.length > 2) {
+		// Split into separate words, keeping hyphen with each part except last
+		return hyphenParts.map((part, i) =>
+			i < hyphenParts.length - 1 ? part + '-' : part
+		).filter(w => w.length > 0 && w !== '-');
+	}
+
 	// Match em-dash (—), en-dash (–), ellipsis (…), or three dots (...)
 	const splitPattern = /(—|–|…|\.\.\.)/;
 
