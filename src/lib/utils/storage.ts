@@ -29,21 +29,22 @@ function openDB(): Promise<IDBDatabase> {
  */
 export async function saveLastFile(file: File): Promise<void> {
 	try {
-		const db = await openDB();
-		const transaction = db.transaction(FILE_STORE, 'readwrite');
-		const store = transaction.objectStore(FILE_STORE);
-
-		// Store file as ArrayBuffer with metadata
+		// Read file data BEFORE opening transaction (async operations close transactions)
 		const arrayBuffer = await file.arrayBuffer();
-
-		store.put({
+		const metadata = {
 			id: 'lastFile',
 			name: file.name,
 			type: file.type,
 			size: file.size,
 			data: arrayBuffer,
 			savedAt: Date.now()
-		});
+		};
+
+		const db = await openDB();
+		const transaction = db.transaction(FILE_STORE, 'readwrite');
+		const store = transaction.objectStore(FILE_STORE);
+
+		store.put(metadata);
 
 		await new Promise<void>((resolve, reject) => {
 			transaction.oncomplete = () => resolve();
