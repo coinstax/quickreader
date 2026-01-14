@@ -130,3 +130,72 @@ export function clearRecentFiles(): void {
 		console.error('Failed to clear recent files:', e);
 	}
 }
+
+/**
+ * Book-specific preferences (per fileKey)
+ */
+interface BookPrefs {
+	hiddenImages: string[]; // Original src values of hidden images
+}
+
+function loadAllBookPrefs(): Record<string, BookPrefs> {
+	try {
+		const stored = localStorage.getItem(STORAGE_KEYS.bookPrefs);
+		return stored ? JSON.parse(stored) : {};
+	} catch (e) {
+		console.error('Failed to load book prefs:', e);
+		return {};
+	}
+}
+
+function saveAllBookPrefs(prefs: Record<string, BookPrefs>): void {
+	try {
+		localStorage.setItem(STORAGE_KEYS.bookPrefs, JSON.stringify(prefs));
+	} catch (e) {
+		console.error('Failed to save book prefs:', e);
+	}
+}
+
+/**
+ * Get hidden images for a specific book.
+ */
+export function getHiddenImages(fileKey: string): string[] {
+	const prefs = loadAllBookPrefs();
+	return prefs[fileKey]?.hiddenImages || [];
+}
+
+/**
+ * Hide an image (by original src) for a specific book.
+ */
+export function hideImage(fileKey: string, originalSrc: string): void {
+	const prefs = loadAllBookPrefs();
+	if (!prefs[fileKey]) {
+		prefs[fileKey] = { hiddenImages: [] };
+	}
+	if (!prefs[fileKey].hiddenImages.includes(originalSrc)) {
+		prefs[fileKey].hiddenImages.push(originalSrc);
+	}
+	saveAllBookPrefs(prefs);
+}
+
+/**
+ * Show a previously hidden image.
+ */
+export function showImage(fileKey: string, originalSrc: string): void {
+	const prefs = loadAllBookPrefs();
+	if (prefs[fileKey]?.hiddenImages) {
+		prefs[fileKey].hiddenImages = prefs[fileKey].hiddenImages.filter(src => src !== originalSrc);
+		saveAllBookPrefs(prefs);
+	}
+}
+
+/**
+ * Show all hidden images for a book.
+ */
+export function showAllImages(fileKey: string): void {
+	const prefs = loadAllBookPrefs();
+	if (prefs[fileKey]) {
+		prefs[fileKey].hiddenImages = [];
+		saveAllBookPrefs(prefs);
+	}
+}

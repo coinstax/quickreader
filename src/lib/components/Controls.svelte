@@ -146,6 +146,7 @@
 	}
 
 	.control-btn.play-btn:hover:not(:disabled) {
+		background: var(--accent-color);
 		filter: brightness(1.2);
 		transform: scale(1.1);
 	}

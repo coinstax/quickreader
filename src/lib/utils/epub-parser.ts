@@ -312,37 +312,101 @@ async function resolveImageUrls(
 ): Promise<Map<string, string>> {
 	const urlMap = new Map<string, string>();
 
+	// Get the package directory (e.g., "OEBPS/")
+	const packageDir = (book as any).packaging?.directory || '';
+	console.log(`[EPUB] Package directory: "${packageDir}"`);
+	console.log(`[EPUB] Resolving ${imageSrcs.length} images for chapter: ${chapterHref}`);
+
 	for (const src of imageSrcs) {
 		try {
-			// Try to get the image from the EPUB archive
-			// epub.js provides archive access for resources
-			const archive = (book as any).archive;
-			if (archive && typeof archive.getBlob === 'function') {
-				// Resolve relative path
-				let resolvedPath = src;
-				if (src.startsWith('../') || src.startsWith('./') || !src.startsWith('/')) {
-					// Build absolute path from chapter location
-					const chapterDir = chapterHref.substring(0, chapterHref.lastIndexOf('/') + 1);
-					resolvedPath = chapterDir + src;
-					// Normalize path (remove ../)
-					resolvedPath = resolvedPath.split('/').reduce((acc: string[], part) => {
-						if (part === '..') acc.pop();
-						else if (part !== '.') acc.push(part);
-						return acc;
-					}, []).join('/');
-				}
+			// Resolve relative path to absolute path within EPUB
+			let resolvedPath = src;
+			if (src.startsWith('../') || src.startsWith('./') || !src.startsWith('/')) {
+				// Build absolute path from chapter location
+				// The chapter href might not include the package directory, so we need to add it
+				const fullChapterPath = packageDir + chapterHref;
+				const chapterDir = fullChapterPath.substring(0, fullChapterPath.lastIndexOf('/') + 1);
+				resolvedPath = chapterDir + src;
+				// Normalize path (remove ../)
+				resolvedPath = resolvedPath.split('/').reduce((acc: string[], part) => {
+					if (part === '..') acc.pop();
+					else if (part !== '.') acc.push(part);
+					return acc;
+				}, []).join('/');
+			}
 
-				const blob = await archive.getBlob(resolvedPath);
-				if (blob) {
-					const blobUrl = URL.createObjectURL(blob);
-					urlMap.set(src, blobUrl);
+			console.log(`[EPUB] Resolving image: ${src} -> ${resolvedPath}`);
+
+			// Try different methods to get the image blob
+			const archive = (book as any).archive;
+			let blob: Blob | null = null;
+
+			// Method 1: Try archive.zip.file() (JSZip) - most reliable
+			if (!blob && archive?.zip?.file) {
+				try {
+					const zipFile = archive.zip.file(resolvedPath);
+					if (zipFile) {
+						blob = await zipFile.async('blob');
+						console.log(`[EPUB] Got blob via zip.file: size=${blob?.size}`);
+					} else {
+						console.log(`[EPUB] zip.file returned null for: ${resolvedPath}`);
+					}
+				} catch (e) {
+					console.log(`[EPUB] zip.file method failed:`, e);
 				}
 			}
+
+			// Method 2: If that didn't work, try without the package directory
+			if (!blob && archive?.zip?.file && packageDir) {
+				try {
+					// Remove package directory prefix if present
+					const pathWithoutPkg = resolvedPath.startsWith(packageDir)
+						? resolvedPath.substring(packageDir.length)
+						: resolvedPath;
+					const zipFile = archive.zip.file(pathWithoutPkg);
+					if (zipFile) {
+						blob = await zipFile.async('blob');
+						console.log(`[EPUB] Got blob via zip.file (without pkg): size=${blob?.size}`);
+					}
+				} catch (e) {
+					console.log(`[EPUB] zip.file (without pkg) method failed:`, e);
+				}
+			}
+
+			// Method 3: Try listing all files to find a match
+			if (!blob && archive?.zip?.files) {
+				try {
+					const files = archive.zip.files;
+					const fileName = resolvedPath.split('/').pop();
+					// Look for a file with matching name
+					for (const path of Object.keys(files)) {
+						if (path.endsWith('/' + fileName) || path === fileName) {
+							const zipFile = files[path];
+							if (!zipFile.dir) {
+								blob = await zipFile.async('blob');
+								console.log(`[EPUB] Got blob via file search: ${path}, size=${blob?.size}`);
+								break;
+							}
+						}
+					}
+				} catch (e) {
+					console.log(`[EPUB] file search method failed:`, e);
+				}
+			}
+
+			if (blob) {
+				const blobUrl = URL.createObjectURL(blob);
+				urlMap.set(src, blobUrl);
+				console.log(`[EPUB] Created blob URL for ${src}: ${blobUrl}`);
+			} else {
+				console.warn(`[EPUB] Could not resolve image: ${src}`);
+			}
 		} catch (e) {
-			console.warn(`Failed to resolve image: ${src}`, e);
+			console.warn(`[EPUB] Failed to resolve image: ${src}`, e);
 		}
 	}
 
+	console.log(`[EPUB] Resolved ${urlMap.size}/${imageSrcs.length} images`);
 	return urlMap;
 }
 
@@ -354,9 +418,10 @@ function replaceImageUrls(html: string, urlMap: Map<string, string>): string {
 	for (const [original, blobUrl] of urlMap) {
 		// Escape special regex characters
 		const escaped = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		// Replace src and add data-original-src attribute for identification
 		result = result.replace(
 			new RegExp(`src=["']${escaped}["']`, 'g'),
-			`src="${blobUrl}"`
+			`src="${blobUrl}" data-original-src="${original}"`
 		);
 	}
 	return result;
@@ -595,10 +660,12 @@ export async function parseEpub(file: File, targetWordsPerPage = 250): Promise<P
 			}
 
 			// Store chapter content for preview
+			const wordRangeEnd = wordIndex > chapterStartWord ? wordIndex - 1 : chapterStartWord;
+			console.log(`[EPUB] Chapter ${chapters.length} "${chapterTitle}": words ${chapterStartWord}-${wordRangeEnd}, images: ${imageUrls.size}, hasHtml: ${!!markedHtml}`);
 			chapterContents.push({
 				chapterIndex: chapters.length,
 				htmlWithMarkers: markedHtml,
-				wordRange: [chapterStartWord, wordIndex - 1],
+				wordRange: [chapterStartWord, wordRangeEnd],
 				imageUrls
 			});
 		} catch (e) {

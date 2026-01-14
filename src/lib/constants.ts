@@ -93,7 +93,8 @@ export const DEFAULT_FONT_FAMILY = FONT_FAMILIES[0].value;
 export const STORAGE_KEYS = {
 	settings: 'rsvp-settings',
 	progress: 'rsvp-progress',
-	recentFiles: 'rsvp-recent-files'
+	recentFiles: 'rsvp-recent-files',
+	bookPrefs: 'rsvp-book-prefs'
 } as const;
 
 // Navigation chunk sizes (fallback if no page info)
