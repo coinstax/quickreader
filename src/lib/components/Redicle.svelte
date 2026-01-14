@@ -198,6 +198,11 @@
 			padding: 2rem 1rem;
 			min-height: 150px;
 		}
+
+		.word-display {
+			/* Scale font to 70% on tablets */
+			font-size: calc(var(--font-size) * 0.7);
+		}
 	}
 
 	@media (max-width: 480px) {
@@ -212,6 +217,19 @@
 
 		.center-mark {
 			height: 12px;
+		}
+
+		.word-display {
+			/* Scale font to 50% on phones - 48px becomes 24px */
+			font-size: calc(var(--font-size) * 0.5);
+		}
+	}
+
+	/* Extra small phones in portrait */
+	@media (max-width: 380px) {
+		.word-display {
+			/* Even smaller for very narrow screens */
+			font-size: calc(var(--font-size) * 0.42);
 		}
 	}
 </style>
