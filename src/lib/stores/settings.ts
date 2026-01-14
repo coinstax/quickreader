@@ -19,6 +19,8 @@ export interface Settings {
 	longWordDelayMultiplier: number;
 	pauseOnNames: boolean;
 	nameDelayMultiplier: number;
+	previewVisible: boolean;
+	previewWidth: number; // percentage (20-50)
 }
 
 const defaultSettings: Settings = {
@@ -30,7 +32,9 @@ const defaultSettings: Settings = {
 	punctuationDelayMultiplier: 1.5,
 	longWordDelayMultiplier: 1.2,
 	pauseOnNames: true,
-	nameDelayMultiplier: 1.3
+	nameDelayMultiplier: 1.3,
+	previewVisible: true,
+	previewWidth: 35
 };
 
 function createSettingsStore() {
@@ -77,6 +81,29 @@ function createSettingsStore() {
 		setFontFamily: (fontFamily: string) => {
 			update(s => {
 				const updated = { ...s, fontFamily };
+				saveSettings(updated);
+				return updated;
+			});
+		},
+		setPreviewVisible: (previewVisible: boolean) => {
+			update(s => {
+				const updated = { ...s, previewVisible };
+				saveSettings(updated);
+				return updated;
+			});
+		},
+		setPreviewWidth: (width: number) => {
+			update(s => {
+				// Clamp to 20-50% range
+				const previewWidth = Math.max(20, Math.min(50, width));
+				const updated = { ...s, previewWidth };
+				saveSettings(updated);
+				return updated;
+			});
+		},
+		togglePreview: () => {
+			update(s => {
+				const updated = { ...s, previewVisible: !s.previewVisible };
 				saveSettings(updated);
 				return updated;
 			});

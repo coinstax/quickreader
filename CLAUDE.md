@@ -124,6 +124,8 @@ This application displays text one word at a time using the Spritz-style ORP (Op
 ```
 rsvp/
 ├── CLAUDE.md              # This file
+├── README.md              # GitHub readme
+├── LICENSE                # MIT license
 ├── package.json
 ├── svelte.config.js
 ├── vite.config.js
@@ -139,14 +141,15 @@ rsvp/
 │   │   │   ├── SpeedSlider.svelte  # WPM control
 │   │   │   ├── ProgressBar.svelte  # Reading progress
 │   │   │   ├── FileLoader.svelte   # File input handling
-│   │   │   └── Settings.svelte     # Theme/font settings modal
+│   │   │   ├── Settings.svelte     # Theme/font settings modal
+│   │   │   └── Preview.svelte      # Context preview panel
 │   │   ├── stores/
 │   │   │   ├── reader.ts           # Reading state (words, position, playing)
-│   │   │   ├── settings.ts         # User preferences
+│   │   │   ├── settings.ts         # User preferences (includes preview settings)
 │   │   │   └── document.ts         # Loaded document data
 │   │   ├── utils/
-│   │   │   ├── orp.ts              # ORP calculation + timing
-│   │   │   ├── epub-parser.ts      # EPUB parsing with formatting
+│   │   │   ├── orp.ts              # ORP calculation + timing + name detection
+│   │   │   ├── epub-parser.ts      # EPUB parsing with formatting + preview HTML
 │   │   │   ├── text-parser.ts      # Plain text parsing
 │   │   │   └── storage.ts          # localStorage helpers
 │   │   └── constants.ts            # Theme presets, speed limits, etc.
@@ -196,6 +199,46 @@ function getORPIndex(word: string): number {
 | [ | Decrease speed by 50 WPM |
 | ] | Increase speed by 50 WPM |
 | Esc | Close modals |
+
+## Preview Panel Feature
+
+A side panel showing the current page like an e-reader with highlighting and click-to-navigate.
+
+**Features:**
+- Shows current page content with natural pagination (like an e-reader)
+- EPUB support: Preserves original HTML formatting, links, images via blob URLs
+- Plain text support: Shows current page with paragraph formatting
+- Click any word to jump to that position
+- Toggle visibility with button in header (book icon)
+- Responsive: Hidden on screens < 1024px
+- Memory safe: Blob URLs cleaned up when documents change
+
+**Pagination:**
+- Pages break at natural paragraph boundaries (targeting ~250 words per page)
+- Each chapter starts on a new page
+- Preserves document structure unlike arbitrary word-count pagination
+
+**Current Word Highlighting:**
+- When paused: Bright red highlight (ORP color) for easy visibility
+- When actively reading: Subtle gray tint (15% opacity) to avoid peripheral distraction
+
+**Key Data Structures:**
+```typescript
+interface ChapterContent {
+  chapterIndex: number;
+  htmlWithMarkers: string;  // HTML with <span data-word-index="N"> wrappers
+  wordRange: [number, number];
+  imageUrls: Map<string, string>;  // original src → blob URL
+}
+
+interface ParsedEpubWithContent extends ParsedEpub {
+  chapterContents: ChapterContent[];
+}
+```
+
+**Settings:**
+- `previewVisible: boolean` - default: true
+- `previewWidth: number` - default: 35 (percentage, range 20-50)
 
 ## Phase 2 Features (Future)
 

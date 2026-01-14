@@ -65,9 +65,9 @@ function splitOnDashes(word: string): string[] {
 
 /**
  * Parse plain text into words with paragraph tracking.
- * Pages are estimated based on word count since plain text doesn't have pages.
+ * Pages break at paragraph boundaries, targeting ~250 words per page.
  */
-export function parseText(text: string, wordsPerPage = 250): ParsedDocument {
+export function parseText(text: string, targetWordsPerPage = 250): ParsedDocument {
 	const words: ParsedWord[] = [];
 	const paragraphStarts: number[] = [];
 	const pageStarts: number[] = [0]; // First page starts at word 0
@@ -77,6 +77,7 @@ export function parseText(text: string, wordsPerPage = 250): ParsedDocument {
 
 	let wordIndex = 0;
 	let currentPage = 0;
+	let wordsOnCurrentPage = 0;
 
 	paragraphs.forEach((paragraph, paragraphIndex) => {
 		// Mark paragraph start
@@ -92,12 +93,6 @@ export function parseText(text: string, wordsPerPage = 250): ParsedDocument {
 		const paragraphWords = rawWords.flatMap(splitOnDashes);
 
 		paragraphWords.forEach(wordText => {
-			// Check if we need a new page
-			if (wordIndex > 0 && wordIndex % wordsPerPage === 0) {
-				currentPage++;
-				pageStarts.push(wordIndex);
-			}
-
 			words.push({
 				text: wordText,
 				paragraphIndex,
@@ -105,8 +100,26 @@ export function parseText(text: string, wordsPerPage = 250): ParsedDocument {
 			});
 
 			wordIndex++;
+			wordsOnCurrentPage++;
 		});
+
+		// After each paragraph, check if we should start a new page
+		// Break if we've exceeded the target (allows natural paragraph breaks)
+		if (wordsOnCurrentPage >= targetWordsPerPage && paragraphIndex < paragraphs.length - 1) {
+			currentPage++;
+			pageStarts.push(wordIndex);
+			wordsOnCurrentPage = 0;
+		}
 	});
+
+	// Update pageIndex for all words based on final page assignments
+	let pageIdx = 0;
+	for (let i = 0; i < words.length; i++) {
+		if (pageIdx < pageStarts.length - 1 && i >= pageStarts[pageIdx + 1]) {
+			pageIdx++;
+		}
+		words[i].pageIndex = pageIdx;
+	}
 
 	return {
 		words,

@@ -2,6 +2,27 @@ import ePub, { type Book, type NavItem } from 'epubjs';
 import type { ParsedDocument, ParsedWord } from './text-parser';
 
 /**
+ * Content for a single chapter with word position markers for preview.
+ */
+export interface ChapterContent {
+	chapterIndex: number;
+	/** HTML with <span data-word-index="N"> wrappers around each word */
+	htmlWithMarkers: string;
+	/** Word index range [start, end] for this chapter */
+	wordRange: [number, number];
+	/** Map of original image src to blob URL */
+	imageUrls: Map<string, string>;
+}
+
+/**
+ * Extended ParsedEpub with preview content.
+ */
+export interface ParsedEpubWithContent extends ParsedEpub {
+	/** HTML content per chapter for preview rendering */
+	chapterContents: ChapterContent[];
+}
+
+/**
  * Split a word on em-dashes, en-dashes, ellipsis, and long hyphenated compounds.
  * "consciousness—seemed" becomes ["consciousness—", "seemed"]
  * "delusion…created" becomes ["delusion…", "created"]
@@ -48,6 +69,126 @@ interface FormattedWord {
 	bold: boolean;
 }
 
+interface ParagraphBlock {
+	words: FormattedWord[];
+}
+
+/**
+ * Extract words grouped by paragraphs from a DOM element.
+ * Each block-level element (p, h1-h6, li, div with text) becomes a paragraph.
+ */
+function extractParagraphBlocks(element: Element): ParagraphBlock[] {
+	const blocks: ParagraphBlock[] = [];
+
+	// Block-level elements that define paragraphs
+	const blockTags = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote', 'div', 'section', 'article']);
+
+	function extractWordsFromNode(node: Node, italic: boolean, bold: boolean): FormattedWord[] {
+		const words: FormattedWord[] = [];
+
+		if (node.nodeType === Node.TEXT_NODE) {
+			const text = node.textContent || '';
+			const rawWords = text.split(/\s+/).filter(w => w.length > 0);
+			const splitWords = rawWords.flatMap(splitOnDashes);
+
+			for (const word of splitWords) {
+				words.push({ text: word, italic, bold });
+			}
+		} else if (node.nodeType === Node.ELEMENT_NODE) {
+			const el = node as Element;
+			const tagName = el.tagName.toLowerCase();
+
+			// Skip script and style tags
+			if (tagName === 'script' || tagName === 'style') {
+				return words;
+			}
+
+			// Check for formatting tags
+			const isItalic = italic || tagName === 'i' || tagName === 'em';
+			const isBold = bold || tagName === 'b' || tagName === 'strong';
+
+			for (const child of Array.from(node.childNodes)) {
+				words.push(...extractWordsFromNode(child, isItalic, isBold));
+			}
+		}
+
+		return words;
+	}
+
+	// Leaf block tags - these are always treated as paragraph boundaries
+	const leafBlockTags = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote']);
+	// Container block tags - these should recurse if they contain other blocks
+	const containerBlockTags = new Set(['div', 'section', 'article', 'aside', 'main']);
+
+	function processElement(el: Element) {
+		const tagName = el.tagName.toLowerCase();
+
+		// Skip non-content elements
+		if (tagName === 'script' || tagName === 'style' || tagName === 'nav' || tagName === 'header' || tagName === 'footer') {
+			return;
+		}
+
+		// Leaf block elements are always treated as paragraphs
+		if (leafBlockTags.has(tagName)) {
+			const words = extractWordsFromNode(el, false, false);
+			if (words.length > 0) {
+				blocks.push({ words });
+			}
+			return;
+		}
+
+		// Container block elements: check if they contain block children
+		if (containerBlockTags.has(tagName)) {
+			const hasBlockChildren = Array.from(el.children).some(child => {
+				const childTag = child.tagName.toLowerCase();
+				return leafBlockTags.has(childTag) || containerBlockTags.has(childTag);
+			});
+
+			if (hasBlockChildren) {
+				// Recurse into children
+				for (const child of Array.from(el.children)) {
+					processElement(child);
+				}
+			} else {
+				// No block children - treat this container as a paragraph
+				const words = extractWordsFromNode(el, false, false);
+				if (words.length > 0) {
+					blocks.push({ words });
+				}
+			}
+			return;
+		}
+
+		// For other elements, recurse into children
+		for (const child of Array.from(el.children)) {
+			processElement(child);
+		}
+
+		// If no block children but has text, treat as a paragraph
+		if (el.children.length === 0) {
+			const words = extractWordsFromNode(el, false, false);
+			if (words.length > 0) {
+				blocks.push({ words });
+			}
+		}
+	}
+
+	// Start processing from the element's children
+	for (const child of Array.from(element.children)) {
+		processElement(child);
+	}
+
+	// If no blocks found, fall back to treating entire element as one block
+	if (blocks.length === 0) {
+		const words = extractFormattedWords(element);
+		if (words.length > 0) {
+			blocks.push({ words });
+		}
+	}
+
+	return blocks;
+}
+
 /**
  * Extract words from a DOM element while preserving italic/bold formatting.
  */
@@ -88,6 +229,140 @@ function extractFormattedWords(element: Element): FormattedWord[] {
 }
 
 /**
+ * Result of injecting word markers into HTML.
+ */
+interface MarkedHtmlResult {
+	html: string;
+	wordCount: number;
+	imageSrcs: string[];
+}
+
+/**
+ * Inject word index markers into an HTML element for preview highlighting.
+ * Each word gets wrapped in <span data-word-index="N">.
+ */
+function injectWordMarkers(element: Element, startWordIndex: number): MarkedHtmlResult {
+	// Clone to avoid mutating original
+	const clone = element.cloneNode(true) as Element;
+	let currentIndex = startWordIndex;
+	const imageSrcs: string[] = [];
+
+	// Collect image sources
+	clone.querySelectorAll('img').forEach(img => {
+		const src = img.getAttribute('src');
+		if (src) imageSrcs.push(src);
+	});
+
+	// Walk all text nodes and wrap words
+	const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT);
+	const textNodes: Text[] = [];
+
+	while (walker.nextNode()) {
+		textNodes.push(walker.currentNode as Text);
+	}
+
+	for (const textNode of textNodes) {
+		const text = textNode.textContent || '';
+		if (!text.trim()) continue;
+
+		// Split into words and whitespace, preserving whitespace
+		const parts = text.split(/(\s+)/);
+		const fragment = document.createDocumentFragment();
+
+		for (const part of parts) {
+			if (!part) continue;
+
+			if (/^\s+$/.test(part)) {
+				// Whitespace - preserve as-is
+				fragment.appendChild(document.createTextNode(part));
+			} else {
+				// Word - split on dashes/ellipsis and wrap each
+				const subWords = splitOnDashes(part);
+				for (const subWord of subWords) {
+					const span = document.createElement('span');
+					span.setAttribute('data-word-index', String(currentIndex));
+					span.textContent = subWord;
+					fragment.appendChild(span);
+					// Add space between split words
+					if (subWord !== subWords[subWords.length - 1]) {
+						fragment.appendChild(document.createTextNode(' '));
+					}
+					currentIndex++;
+				}
+			}
+		}
+
+		textNode.parentNode?.replaceChild(fragment, textNode);
+	}
+
+	return {
+		html: clone.innerHTML,
+		wordCount: currentIndex - startWordIndex,
+		imageSrcs
+	};
+}
+
+/**
+ * Resolve EPUB image paths to blob URLs.
+ */
+async function resolveImageUrls(
+	book: Book,
+	imageSrcs: string[],
+	chapterHref: string
+): Promise<Map<string, string>> {
+	const urlMap = new Map<string, string>();
+
+	for (const src of imageSrcs) {
+		try {
+			// Try to get the image from the EPUB archive
+			// epub.js provides archive access for resources
+			const archive = (book as any).archive;
+			if (archive && typeof archive.getBlob === 'function') {
+				// Resolve relative path
+				let resolvedPath = src;
+				if (src.startsWith('../') || src.startsWith('./') || !src.startsWith('/')) {
+					// Build absolute path from chapter location
+					const chapterDir = chapterHref.substring(0, chapterHref.lastIndexOf('/') + 1);
+					resolvedPath = chapterDir + src;
+					// Normalize path (remove ../)
+					resolvedPath = resolvedPath.split('/').reduce((acc: string[], part) => {
+						if (part === '..') acc.pop();
+						else if (part !== '.') acc.push(part);
+						return acc;
+					}, []).join('/');
+				}
+
+				const blob = await archive.getBlob(resolvedPath);
+				if (blob) {
+					const blobUrl = URL.createObjectURL(blob);
+					urlMap.set(src, blobUrl);
+				}
+			}
+		} catch (e) {
+			console.warn(`Failed to resolve image: ${src}`, e);
+		}
+	}
+
+	return urlMap;
+}
+
+/**
+ * Replace image src attributes in HTML with resolved blob URLs.
+ */
+function replaceImageUrls(html: string, urlMap: Map<string, string>): string {
+	let result = html;
+	for (const [original, blobUrl] of urlMap) {
+		// Escape special regex characters
+		const escaped = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		result = result.replace(
+			new RegExp(`src=["']${escaped}["']`, 'g'),
+			`src="${blobUrl}"`
+		);
+	}
+	return result;
+}
+
+/**
  * Extended parsed document with EPUB-specific information.
  */
 export interface ParsedEpub extends ParsedDocument {
@@ -107,8 +382,10 @@ export interface ChapterInfo {
 
 /**
  * Parse an EPUB file into words with chapter, paragraph, and page tracking.
+ * Pages break at natural boundaries (chapters and paragraphs).
+ * Also generates HTML with word markers for preview display.
  */
-export async function parseEpub(file: File): Promise<ParsedEpub> {
+export async function parseEpub(file: File, targetWordsPerPage = 250): Promise<ParsedEpubWithContent> {
 	const arrayBuffer = await file.arrayBuffer();
 	const book: Book = ePub(arrayBuffer);
 
@@ -128,11 +405,13 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 	const pageStarts: number[] = [0];
 	const chapters: ChapterInfo[] = [];
 	const chapterStarts: number[] = [];
+	const chapterContents: ChapterContent[] = [];
 	const parseWarnings: string[] = [];
 
 	let wordIndex = 0;
 	let paragraphIndex = 0;
 	let currentPage = 0;
+	let wordsOnCurrentPage = 0;
 
 	// Get spine items (the reading order)
 	const spine = book.spine;
@@ -162,6 +441,13 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 
 	// Process each spine item (section/chapter)
 	for (const spineItem of spineItems) {
+		// Start a new page at each chapter boundary (if not at start)
+		if (wordIndex > 0 && wordsOnCurrentPage > 0) {
+			currentPage++;
+			pageStarts.push(wordIndex);
+			wordsOnCurrentPage = 0;
+		}
+
 		const chapterStartWord = wordIndex;
 		chapterStarts.push(chapterStartWord);
 
@@ -207,13 +493,14 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 
 			// Extract words with formatting from content
 			let formattedWords: FormattedWord[] = [];
+			let markedHtml = '';
+			let imageSrcs: string[] = [];
+			let contentElement: Element | null = null;
 
+			// Parse content to get element
 			if (contents instanceof Element) {
-				// HTMLHtmlElement or other Element - find body and extract formatted words
 				const el = contents as Element;
 				let bodyEl: Element | null = el.querySelector('body');
-
-				// If querySelector fails (XHTML namespace issues), try other methods
 				if (!bodyEl) {
 					bodyEl = el.getElementsByTagName('body')[0] || null;
 				}
@@ -225,24 +512,29 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 						}
 					}
 				}
-
-				// Extract formatted words from body (or whole element if no body)
-				formattedWords = extractFormattedWords(bodyEl || el);
+				contentElement = bodyEl || el;
 			} else if (contents instanceof Document) {
 				if (contents.body) {
-					formattedWords = extractFormattedWords(contents.body);
+					contentElement = contents.body;
 				}
 			} else if (typeof contents === 'string') {
-				// Plain string - strip HTML and split (no formatting)
-				const textContent = stripHtml(contents);
-				const rawWords = textContent.split(/\s+/).filter(w => w.length > 0);
-				formattedWords = rawWords.flatMap(splitOnDashes).map(text => ({
-					text,
-					italic: false,
-					bold: false
-				}));
+				try {
+					const parser = new DOMParser();
+					const doc = parser.parseFromString(contents, 'text/html');
+					if (doc.body) {
+						contentElement = doc.body;
+					}
+				} catch {
+					// Fallback handled below
+				}
+			}
+
+			// Extract paragraph blocks from content
+			let paragraphBlocks: ParagraphBlock[] = [];
+			if (contentElement) {
+				paragraphBlocks = extractParagraphBlocks(contentElement);
 			} else {
-				// Fallback: try to get textContent
+				// Fallback: treat entire content as one block
 				const textContent = (contents as any)?.textContent || '';
 				const rawWords = textContent.split(/\s+/).filter((w: string) => w.length > 0);
 				formattedWords = rawWords.flatMap(splitOnDashes).map((text: string) => ({
@@ -250,19 +542,27 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 					italic: false,
 					bold: false
 				}));
+				if (formattedWords.length > 0) {
+					paragraphBlocks = [{ words: formattedWords }];
+				}
 			}
 
-			// Mark section as a paragraph
-			if (formattedWords.length > 0) {
+			// Generate marked HTML for preview if we have a content element
+			if (contentElement) {
+				const markedResult = injectWordMarkers(contentElement, chapterStartWord);
+				markedHtml = markedResult.html;
+				imageSrcs = markedResult.imageSrcs;
+			}
+
+			// Process each paragraph block
+			for (const block of paragraphBlocks) {
+				if (block.words.length === 0) continue;
+
+				// Mark paragraph start
 				paragraphStarts.push(wordIndex);
 
-				for (const fw of formattedWords) {
-					// Check for page break (every 250 words)
-					if (wordIndex > 0 && wordIndex % 250 === 0) {
-						currentPage++;
-						pageStarts.push(wordIndex);
-					}
-
+				// Add all words in this paragraph
+				for (const fw of block.words) {
 					words.push({
 						text: fw.text,
 						paragraphIndex,
@@ -270,12 +570,37 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 						italic: fw.italic || undefined,
 						bold: fw.bold || undefined
 					});
-
 					wordIndex++;
+					wordsOnCurrentPage++;
 				}
 
 				paragraphIndex++;
+
+				// After each paragraph, check if we should start a new page
+				// Only break if we've exceeded the target word count
+				if (wordsOnCurrentPage >= targetWordsPerPage) {
+					currentPage++;
+					pageStarts.push(wordIndex);
+					wordsOnCurrentPage = 0;
+				}
 			}
+
+			// Resolve image URLs and build chapter content
+			let imageUrls = new Map<string, string>();
+			if (imageSrcs.length > 0) {
+				imageUrls = await resolveImageUrls(book, imageSrcs, spineItem.href || '');
+				if (imageUrls.size > 0) {
+					markedHtml = replaceImageUrls(markedHtml, imageUrls);
+				}
+			}
+
+			// Store chapter content for preview
+			chapterContents.push({
+				chapterIndex: chapters.length,
+				htmlWithMarkers: markedHtml,
+				wordRange: [chapterStartWord, wordIndex - 1],
+				imageUrls
+			});
 		} catch (e) {
 			const errorMsg = e instanceof Error ? e.message : 'Unknown error';
 			const warning = `Failed to parse chapter "${chapterTitle}": ${errorMsg}`;
@@ -291,7 +616,8 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 		});
 	}
 
-	// Clean up
+	// Clean up - but don't destroy book yet as we may need it for images
+	// Note: book.destroy() should be called when document is unloaded
 	book.destroy();
 
 	return {
@@ -300,6 +626,7 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 		pageStarts,
 		chapterStarts,
 		chapters,
+		chapterContents,
 		title,
 		author,
 		totalWords: words.length,
@@ -360,4 +687,22 @@ export function getWordIndexForChapter(doc: ParsedEpub, chapterIndex: number): n
 		return doc.totalWords - 1;
 	}
 	return doc.chapterStarts[chapterIndex];
+}
+
+/**
+ * Clean up blob URLs to prevent memory leaks.
+ * Call this when unloading a document.
+ */
+export function cleanupEpubResources(doc: ParsedEpubWithContent): void {
+	if (!doc.chapterContents) return;
+
+	for (const chapter of doc.chapterContents) {
+		for (const blobUrl of chapter.imageUrls.values()) {
+			try {
+				URL.revokeObjectURL(blobUrl);
+			} catch {
+				// Ignore errors
+			}
+		}
+	}
 }

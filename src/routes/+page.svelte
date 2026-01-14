@@ -6,6 +6,7 @@
 	import ProgressBar from '$lib/components/ProgressBar.svelte';
 	import FileLoader from '$lib/components/FileLoader.svelte';
 	import Settings from '$lib/components/Settings.svelte';
+	import Preview from '$lib/components/Preview.svelte';
 
 	import { currentTheme, settings } from '$lib/stores/settings';
 	import { documentStore, isDocumentLoaded, epubTitle, epubAuthor, isEpub, chapters } from '$lib/stores/document';
@@ -25,6 +26,8 @@
 	const currentChapterIndex = $derived($currentChapter);
 	const timeRemaining = $derived($timeRemainingFormatted);
 	const currentWpm = $derived($settings.wpm);
+	const previewVisible = $derived($settings.previewVisible);
+	const previewWidth = $derived($settings.previewWidth);
 
 	onMount(() => {
 		mounted = true;
@@ -124,6 +127,20 @@
 		</div>
 		<div class="header-right">
 			<FileLoader />
+			{#if docLoaded}
+				<button
+					class="preview-btn"
+					class:active={previewVisible}
+					onclick={() => settings.togglePreview()}
+					aria-label={previewVisible ? "Hide preview panel" : "Show preview panel"}
+					title={previewVisible ? "Hide preview" : "Show preview"}
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+						<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+					</svg>
+				</button>
+			{/if}
 			<button class="settings-btn" onclick={() => (settingsOpen = true)} aria-label="Open settings">
 				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<circle cx="12" cy="12" r="3"></circle>
@@ -133,7 +150,7 @@
 		</div>
 	</header>
 
-	<main class="main">
+	<main class="main" class:with-preview={docLoaded && previewVisible} style:--preview-width="{previewWidth}%">
 		{#if !docLoaded}
 			<div class="welcome">
 				<h2>Welcome to RSVP Speed Reader</h2>
@@ -152,36 +169,44 @@
 				</div>
 			</div>
 		{:else}
-			<div class="reader-area">
-				<Redicle />
+			<div class="reader-layout">
+				<div class="reader-area">
+					<Redicle />
 
-				<div class="progress-section">
-					<ProgressBar />
-				</div>
-
-				<div class="controls-section">
-					<Controls />
-
-					<div class="speed-section">
-						<SpeedSlider />
+					<div class="progress-section">
+						<ProgressBar />
 					</div>
 
-					<div class="meta-section">
-						{#if isEpubFile && chapterList.length > 0}
-							<div class="chapter-select">
-								<label for="chapter-select">Chapter:</label>
-								<select id="chapter-select" onchange={handleChapterChange} value={currentChapterIndex}>
-									{#each chapterList as chapter, index}
-										<option value={index}>{chapter.title}</option>
-									{/each}
-								</select>
+					<div class="controls-section">
+						<Controls />
+
+						<div class="speed-section">
+							<SpeedSlider />
+						</div>
+
+						<div class="meta-section">
+							{#if isEpubFile && chapterList.length > 0}
+								<div class="chapter-select">
+									<label for="chapter-select">Chapter:</label>
+									<select id="chapter-select" onchange={handleChapterChange} value={currentChapterIndex}>
+										{#each chapterList as chapter, index}
+											<option value={index}>{chapter.title}</option>
+										{/each}
+									</select>
+								</div>
+							{/if}
+							<div class="time-remaining">
+								~{timeRemaining} remaining
 							</div>
-						{/if}
-						<div class="time-remaining">
-							~{timeRemaining} remaining
 						</div>
 					</div>
 				</div>
+
+				{#if previewVisible}
+					<aside class="preview-panel">
+						<Preview />
+					</aside>
+				{/if}
 			</div>
 		{/if}
 	</main>
@@ -238,7 +263,8 @@
 		gap: 0.75rem;
 	}
 
-	.settings-btn {
+	.settings-btn,
+	.preview-btn {
 		padding: 0.5rem;
 		border-radius: 0.5rem;
 		color: var(--color-text);
@@ -247,12 +273,24 @@
 		transition: background-color 0.2s ease, transform 0.1s ease;
 	}
 
-	.settings-btn:hover {
+	.settings-btn:hover,
+	.preview-btn:hover {
 		background: var(--color-guide);
 	}
 
-	.settings-btn:active {
+	.settings-btn:active,
+	.preview-btn:active {
 		transform: scale(0.95);
+	}
+
+	.preview-btn.active {
+		background: var(--color-orp);
+		color: var(--color-bg);
+		border-color: var(--color-orp);
+	}
+
+	.preview-btn.active:hover {
+		opacity: 0.9;
 	}
 
 	.main {
@@ -260,6 +298,27 @@
 		display: flex;
 		flex-direction: column;
 		padding: 2rem 1.5rem;
+		overflow: hidden;
+	}
+
+	.reader-layout {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+
+	.main.with-preview .reader-layout {
+		display: grid;
+		grid-template-columns: 1fr var(--preview-width, 35%);
+		gap: 1.5rem;
+	}
+
+	.preview-panel {
+		min-height: 0;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.welcome {
@@ -379,6 +438,22 @@
 	}
 
 	/* Responsive */
+	@media (max-width: 1024px) {
+		/* Hide preview panel on smaller screens */
+		.preview-panel {
+			display: none;
+		}
+
+		.preview-btn {
+			display: none;
+		}
+
+		.main.with-preview .reader-layout {
+			display: flex;
+			flex-direction: column;
+		}
+	}
+
 	@media (max-width: 768px) {
 		.header {
 			padding: 0.75rem 1rem;

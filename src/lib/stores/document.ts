@@ -1,6 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import type { ParsedDocument } from '../utils/text-parser';
-import type { ParsedEpub, ChapterInfo } from '../utils/epub-parser';
+import type { ParsedEpub, ChapterInfo, ParsedEpubWithContent } from '../utils/epub-parser';
+import { cleanupEpubResources } from '../utils/epub-parser';
 
 export interface DocumentState {
 	loaded: boolean;
@@ -11,6 +12,9 @@ export interface DocumentState {
 	fileType: 'text' | 'epub' | null;
 	document: ParsedDocument | ParsedEpub | null;
 }
+
+// Track the current document for cleanup
+let currentDocument: ParsedDocument | ParsedEpub | null = null;
 
 const initialState: DocumentState = {
 	loaded: false,
@@ -41,6 +45,12 @@ function createDocumentStore() {
 			fileKey: string,
 			fileType: 'text' | 'epub'
 		) => {
+			// Clean up previous document's blob URLs if it was an EPUB
+			if (currentDocument && 'chapterContents' in currentDocument) {
+				cleanupEpubResources(currentDocument as ParsedEpubWithContent);
+			}
+			currentDocument = document;
+
 			set({
 				loaded: true,
 				loading: false,
@@ -59,6 +69,11 @@ function createDocumentStore() {
 			}));
 		},
 		clear: () => {
+			// Clean up blob URLs before clearing
+			if (currentDocument && 'chapterContents' in currentDocument) {
+				cleanupEpubResources(currentDocument as ParsedEpubWithContent);
+			}
+			currentDocument = null;
 			set(initialState);
 		}
 	};
