@@ -29,12 +29,22 @@ This application displays text one word at a time using the Spritz-style ORP (Op
 ### RSVP Display
 
 **ORP (Optimal Recognition Point) Positioning:**
-- The ORP letter is highlighted in red and aligned to a fixed focal point
+- The ORP letter is highlighted in red and aligned to a fixed focal point (CSS Grid layout)
 - Word positioning based on length:
   - 1-2 letters: 1st letter is ORP
   - 3-6 letters: 2nd letter is ORP
   - 7-9 letters: 3rd letter is ORP
   - 10+ letters: 4th letter is ORP
+
+**Text Formatting:**
+- Italic text from EPUB `<i>` and `<em>` tags is displayed in italics
+- Bold text from EPUB `<b>` and `<strong>` tags is displayed in bold
+
+**Word Splitting:**
+- Em-dashes (—) and en-dashes (–): "consciousness—seemed" → ["consciousness—", "seemed"]
+- Ellipsis (… or ...): "delusion…created" → ["delusion…", "created"]
+- Long hyphenated compounds (3+ parts): "forty-nine-year-old" → ["forty-", "nine-", "year-", "old"]
+- Two-part compounds like "forty-nine" are kept together
 
 **Redicle Display Box:**
 - Fixed-width display area centered on page
@@ -131,15 +141,15 @@ rsvp/
 │   │   │   ├── FileLoader.svelte   # File input handling
 │   │   │   └── Settings.svelte     # Theme/font settings modal
 │   │   ├── stores/
-│   │   │   ├── reader.js           # Reading state (words, position, playing)
-│   │   │   ├── settings.js         # User preferences
-│   │   │   └── document.js         # Loaded document data
+│   │   │   ├── reader.ts           # Reading state (words, position, playing)
+│   │   │   ├── settings.ts         # User preferences
+│   │   │   └── document.ts         # Loaded document data
 │   │   ├── utils/
-│   │   │   ├── orp.js              # ORP calculation
-│   │   │   ├── epub-parser.js      # EPUB parsing
-│   │   │   ├── text-parser.js      # Plain text parsing
-│   │   │   └── storage.js          # localStorage helpers
-│   │   └── constants.js            # Theme presets, speed limits, etc.
+│   │   │   ├── orp.ts              # ORP calculation + timing
+│   │   │   ├── epub-parser.ts      # EPUB parsing with formatting
+│   │   │   ├── text-parser.ts      # Plain text parsing
+│   │   │   └── storage.ts          # localStorage helpers
+│   │   └── constants.ts            # Theme presets, speed limits, etc.
 │   └── static/
 │       └── (any static assets)
 └── tests/                  # Future: component tests
@@ -156,21 +166,22 @@ npm run preview      # Preview production build
 
 ## Key Implementation Notes
 
-### ORP Calculation (`src/lib/utils/orp.js`)
-```javascript
-function getORPIndex(word) {
+### ORP Calculation (`src/lib/utils/orp.ts`)
+```typescript
+function getORPIndex(word: string): number {
   const len = word.length;
-  if (len <= 3) return 0;
-  if (len <= 6) return 1;
-  if (len <= 9) return 2;
-  return 3;
+  if (len <= 2) return 0;  // 1-2 letters: 1st letter
+  if (len <= 6) return 1;  // 3-6 letters: 2nd letter
+  if (len <= 9) return 2;  // 7-9 letters: 3rd letter
+  return 3;                // 10+ letters: 4th letter
 }
 ```
 
 ### Timing Calculation
 - Base interval: `60000 / wpm` milliseconds per word
-- Adjust for punctuation: add 50% delay after periods, commas
-- Adjust for word length: longer words may need slightly more time
+- Punctuation delay: 1.5x multiplier after . , ; : ! ? — –
+- Long word delay: 1.2x multiplier for words with 10+ characters
+- Name/proper noun delay: 1.3x multiplier for capitalized words (not all-caps)
 
 ### Keyboard Shortcuts
 | Key | Action |
