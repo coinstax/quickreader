@@ -99,3 +99,10 @@ export const epubAuthor = derived(documentStore, ($doc): string => {
 	}
 	return '';
 });
+
+export const parseWarnings = derived(documentStore, ($doc): string[] => {
+	if ($doc.fileType === 'epub' && $doc.document) {
+		return ($doc.document as ParsedEpub).parseWarnings || [];
+	}
+	return [];
+});

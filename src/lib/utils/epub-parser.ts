@@ -9,6 +9,7 @@ export interface ParsedEpub extends ParsedDocument {
 	author: string;
 	chapters: ChapterInfo[];
 	chapterStarts: number[]; // Word indices where chapters start
+	parseWarnings: string[]; // Warnings encountered during parsing
 }
 
 export interface ChapterInfo {
@@ -41,6 +42,7 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 	const pageStarts: number[] = [0];
 	const chapters: ChapterInfo[] = [];
 	const chapterStarts: number[] = [];
+	const parseWarnings: string[] = [];
 
 	let wordIndex = 0;
 	let paragraphIndex = 0;
@@ -105,7 +107,10 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 				paragraphIndex++;
 			}
 		} catch (e) {
-			console.warn(`Failed to parse section ${spineItem.href}:`, e);
+			const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+			const warning = `Failed to parse chapter "${chapterTitle}": ${errorMsg}`;
+			parseWarnings.push(warning);
+			console.warn(warning, e);
 		}
 
 		chapters.push({
@@ -129,7 +134,8 @@ export async function parseEpub(file: File): Promise<ParsedEpub> {
 		author,
 		totalWords: words.length,
 		totalParagraphs: paragraphIndex,
-		totalPages: pageStarts.length
+		totalPages: pageStarts.length,
+		parseWarnings
 	};
 }
 

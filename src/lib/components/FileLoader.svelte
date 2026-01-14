@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { documentStore, isDocumentLoading, documentError } from '../stores/document';
+	import { documentStore, isDocumentLoading, documentError, parseWarnings } from '../stores/document';
 	import { reader } from '../stores/reader';
 	import { currentTheme } from '../stores/settings';
-	import { parseEpub } from '../utils/epub-parser';
+	import { parseEpub, type ParsedEpub } from '../utils/epub-parser';
 	import { parseText } from '../utils/text-parser';
 	import { generateFileKey, addRecentFile } from '../utils/storage';
 
@@ -10,10 +10,12 @@
 	const loading = $derived($isDocumentLoading);
 	const error = $derived($documentError);
 	const theme = $derived($currentTheme);
+	const warnings = $derived($parseWarnings);
 
 	// Local state
 	let fileInput: HTMLInputElement | undefined = $state();
 	let loadedFileName = $state('');
+	let showWarnings = $state(false);
 
 	/**
 	 * Handle file selection and loading
@@ -49,6 +51,19 @@
 				fileType = 'text';
 			} else {
 				throw new Error(`Unsupported file type: ${extension}`);
+			}
+
+			// Validate document has content
+			if (!parsedDocument.words || parsedDocument.words.length === 0) {
+				throw new Error('The file appears to be empty or contains no readable text.');
+			}
+
+			// Check for EPUB parse warnings and show to user
+			if (fileType === 'epub') {
+				const epubDoc = parsedDocument as ParsedEpub;
+				if (epubDoc.parseWarnings && epubDoc.parseWarnings.length > 0) {
+					showWarnings = true;
+				}
 			}
 
 			// Set the document in store
@@ -114,6 +129,33 @@
 		<div class="error-message" role="alert">
 			<span class="error-icon" aria-hidden="true">!</span>
 			<span>{error}</span>
+		</div>
+	{/if}
+
+	{#if showWarnings && warnings.length > 0}
+		<div class="warning-banner" role="alert">
+			<div class="warning-content">
+				<span class="warning-icon" aria-hidden="true">⚠</span>
+				<span class="warning-text">
+					{warnings.length} chapter{warnings.length > 1 ? 's' : ''} had parsing issues
+				</span>
+				<button
+					type="button"
+					class="warning-details-btn"
+					onclick={() => alert(warnings.join('\n\n'))}
+					aria-label="View warning details"
+				>
+					Details
+				</button>
+				<button
+					type="button"
+					class="warning-dismiss-btn"
+					onclick={() => showWarnings = false}
+					aria-label="Dismiss warning"
+				>
+					×
+				</button>
+			</div>
 		</div>
 	{/if}
 </div>
@@ -201,11 +243,75 @@
 		font-weight: bold;
 	}
 
+	.warning-banner {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		background: rgba(255, 165, 0, 0.95);
+		color: #1a1a1a;
+		z-index: 1000;
+		padding: 0.5rem 1rem;
+	}
+
+	.warning-content {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
+		max-width: 800px;
+		margin: 0 auto;
+	}
+
+	.warning-icon {
+		font-size: 1.2rem;
+	}
+
+	.warning-text {
+		font-size: 0.9rem;
+		font-weight: 500;
+	}
+
+	.warning-details-btn {
+		padding: 0.25rem 0.5rem;
+		font-size: 0.8rem;
+		background: rgba(0, 0, 0, 0.1);
+		border: 1px solid rgba(0, 0, 0, 0.2);
+		border-radius: 4px;
+		cursor: pointer;
+		color: inherit;
+		font-family: inherit;
+	}
+
+	.warning-details-btn:hover {
+		background: rgba(0, 0, 0, 0.2);
+	}
+
+	.warning-dismiss-btn {
+		padding: 0.25rem 0.5rem;
+		font-size: 1.2rem;
+		background: none;
+		border: none;
+		cursor: pointer;
+		color: inherit;
+		line-height: 1;
+		opacity: 0.7;
+	}
+
+	.warning-dismiss-btn:hover {
+		opacity: 1;
+	}
+
 	@media (max-width: 640px) {
 		.load-button {
 			padding: 0.5rem 0.75rem;
 			font-size: 0.85rem;
 			min-width: 90px;
+		}
+
+		.warning-content {
+			flex-wrap: wrap;
+			gap: 0.5rem;
 		}
 	}
 </style>

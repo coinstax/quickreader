@@ -21,6 +21,29 @@
 			event.preventDefault();
 			onClose();
 		}
+
+		// Focus trap - keep Tab navigation within the modal
+		if (event.key === 'Tab' && open && dialogElement) {
+			const focusableElements = dialogElement.querySelectorAll<HTMLElement>(
+				'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+			);
+			const firstElement = focusableElements[0];
+			const lastElement = focusableElements[focusableElements.length - 1];
+
+			if (event.shiftKey) {
+				// Shift+Tab: if on first element, wrap to last
+				if (document.activeElement === firstElement) {
+					event.preventDefault();
+					lastElement?.focus();
+				}
+			} else {
+				// Tab: if on last element, wrap to first
+				if (document.activeElement === lastElement) {
+					event.preventDefault();
+					firstElement?.focus();
+				}
+			}
+		}
 	}
 
 	function handleOverlayClick(event: MouseEvent) {

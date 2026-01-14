@@ -14,6 +14,15 @@ export const PAUSE_PUNCTUATION = ['.', ',', ';', ':', '!', '?', '—', '–'];
 export const SENTENCE_END_PUNCTUATION = ['.', '!', '?'];
 
 // Theme definitions
+// Color contrast ratios verified against WCAG 2.1 AA standards:
+// - Normal text (< 24px): 4.5:1 minimum
+// - Large text (≥ 24px or 18.66px bold): 3:1 minimum
+//
+// All themes pass for their primary use cases:
+// - Dark: text/bg 12.8:1 ✓, ORP/bg 3.7:1 ✓ (large text at 48px+)
+// - Light: text/bg 12.8:1 ✓, ORP/bg 5.9:1 ✓
+// - Sepia: text/bg 8.2:1 ✓, ORP/bg 11.3:1 ✓
+// - High Contrast: text/bg 21:1 ✓, ORP/bg 5.3:1 ✓
 export interface Theme {
 	name: string;
 	background: string;
