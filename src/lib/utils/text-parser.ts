@@ -22,24 +22,25 @@ export interface ParsedDocument {
 }
 
 /**
- * Split a word on em-dashes and en-dashes, keeping the dash with the first word.
+ * Split a word on em-dashes, en-dashes, and ellipsis, keeping the punctuation with the first word.
  * "consciousness—seemed" becomes ["consciousness—", "seemed"]
+ * "delusion…created" becomes ["delusion…", "created"]
  */
 function splitOnDashes(word: string): string[] {
-	// Match em-dash (—) or en-dash (–)
-	const dashPattern = /(—|–)/;
+	// Match em-dash (—), en-dash (–), ellipsis (…), or three dots (...)
+	const splitPattern = /(—|–|…|\.\.\.)/;
 
-	if (!dashPattern.test(word)) {
+	if (!splitPattern.test(word)) {
 		return [word];
 	}
 
 	const result: string[] = [];
-	const parts = word.split(dashPattern);
+	const parts = word.split(splitPattern);
 
 	for (let i = 0; i < parts.length; i++) {
 		const part = parts[i];
-		if (part === '—' || part === '–') {
-			// Attach dash to previous word if exists
+		if (part === '—' || part === '–' || part === '…' || part === '...') {
+			// Attach punctuation to previous word if exists
 			if (result.length > 0) {
 				result[result.length - 1] += part;
 			}

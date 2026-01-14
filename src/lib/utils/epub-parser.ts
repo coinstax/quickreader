@@ -2,22 +2,23 @@ import ePub, { type Book, type NavItem } from 'epubjs';
 import type { ParsedDocument, ParsedWord } from './text-parser';
 
 /**
- * Split a word on em-dashes and en-dashes, keeping the dash with the first word.
+ * Split a word on em-dashes, en-dashes, and ellipsis, keeping the punctuation with the first word.
  * "consciousness—seemed" becomes ["consciousness—", "seemed"]
+ * "delusion…created" becomes ["delusion…", "created"]
  */
 function splitOnDashes(word: string): string[] {
-	const dashPattern = /(—|–)/;
+	const splitPattern = /(—|–|…|\.\.\.)/;
 
-	if (!dashPattern.test(word)) {
+	if (!splitPattern.test(word)) {
 		return [word];
 	}
 
 	const result: string[] = [];
-	const parts = word.split(dashPattern);
+	const parts = word.split(splitPattern);
 
 	for (let i = 0; i < parts.length; i++) {
 		const part = parts[i];
-		if (part === '—' || part === '–') {
+		if (part === '—' || part === '–' || part === '…' || part === '...') {
 			if (result.length > 0) {
 				result[result.length - 1] += part;
 			}
