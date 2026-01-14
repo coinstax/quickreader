@@ -171,32 +171,29 @@
 		line-height: 1;
 	}
 
-	/* Mobile: Stack layout with play button in center row */
+	/* Mobile: Smaller buttons, single row */
 	@media (max-width: 480px) {
 		.controls {
-			display: grid;
-			grid-template-columns: 1fr;
-			grid-template-rows: auto auto auto;
-			gap: 0.75rem;
-			padding: 0.75rem;
-			justify-items: center;
+			gap: 0.25rem;
+			padding: 0.5rem;
 		}
 
 		.control-group {
-			gap: 0.5rem;
+			gap: 0.25rem;
 		}
 
 		.control-btn {
-			min-width: 2.75rem;
-			min-height: 2.75rem;
-			padding: 0.5rem;
-			font-size: 1rem;
+			min-width: 2.25rem;
+			min-height: 2.25rem;
+			padding: 0.35rem;
+			font-size: 0.85rem;
+			border-width: 1.5px;
 		}
 
 		.control-btn.play-btn {
-			min-width: 4rem;
-			min-height: 4rem;
-			font-size: 1.5rem;
+			min-width: 3rem;
+			min-height: 3rem;
+			font-size: 1.1rem;
 		}
 	}
 
