@@ -18,7 +18,7 @@
 			<span class="divider">·</span>
 			<a href="/privacy">Privacy</a>
 			<span class="divider">·</span>
-			<a href="https://github.com/cdmackie/quickreader" target="_blank" rel="noopener noreferrer">GitHub</a>
+			<a href="https://github.com/coinstax/quickreader" target="_blank" rel="noopener noreferrer">GitHub</a>
 		</nav>
 		<p class="copyright">© {new Date().getFullYear()} CoinsTax LLC. Open source under MIT License.</p>
 	</div>
