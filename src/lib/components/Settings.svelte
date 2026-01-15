@@ -111,6 +111,10 @@
 		settings.setCustomOrpColor(null);
 	}
 
+	function setOrpToTextColor() {
+		settings.setCustomOrpColor(theme.text);
+	}
+
 	// Get the default ORP color from the current theme (without custom override)
 	const defaultOrpColor = $derived(THEMES[settingsValue.themeName]?.orp || THEMES.dark.orp);
 	const isCustomOrpColor = $derived(settingsValue.customOrpColor !== null);
@@ -221,7 +225,7 @@
 						</span>
 					</div>
 					<p class="setting-description">
-						Set to match text color for no highlight. {isCustomOrpColor ? '' : '(Using theme default)'}
+						<button class="btn-link" onclick={setOrpToTextColor}>Match text color</button> for no highlight. {isCustomOrpColor ? '' : '(Using theme default)'}
 					</p>
 				</section>
 
@@ -627,6 +631,21 @@
 	.btn-text:hover {
 		opacity: 1;
 		text-decoration: underline;
+	}
+
+	.btn-link {
+		background: none;
+		border: none;
+		padding: 0;
+		font-size: inherit;
+		color: inherit;
+		cursor: pointer;
+		text-decoration: underline;
+		opacity: 0.9;
+	}
+
+	.btn-link:hover {
+		opacity: 1;
 	}
 
 	.setting-danger-zone {
