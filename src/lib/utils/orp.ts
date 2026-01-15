@@ -1,15 +1,30 @@
 /**
+ * Convert a string to an array of grapheme clusters (user-perceived characters).
+ * This handles:
+ * - Surrogate pairs (mathematical symbols, emoji, CJK extensions)
+ * - Combining characters (é as e + accent)
+ * - Emoji with modifiers (👋🏽, 👨‍👩‍👧)
+ * - Flag emoji (🇺🇸)
+ */
+const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
+
+function toCharArray(str: string): string[] {
+	return [...segmenter.segment(str)].map(s => s.segment);
+}
+
+/**
  * Calculate the Optimal Recognition Point (ORP) index for a word.
  * The ORP is the letter where the eye naturally focuses for fastest recognition.
  *
- * ORP positioning:
+ * ORP positioning (based on character count, not code unit count):
  * - 1-2 letters: 1st letter (index 0)
  * - 3-6 letters: 2nd letter (index 1)
  * - 7-9 letters: 3rd letter (index 2)
  * - 10+ letters: 4th letter (index 3)
  */
 export function getORPIndex(word: string): number {
-	const len = word.length;
+	// Use Unicode-aware character count
+	const len = toCharArray(word).length;
 	if (len <= 2) return 0;
 	if (len <= 6) return 1;
 	if (len <= 9) return 2;
@@ -21,18 +36,23 @@ export function getORPIndex(word: string): number {
  * - before: letters before the ORP
  * - orp: the ORP letter (highlighted)
  * - after: letters after the ORP
+ *
+ * Handles Unicode characters outside the BMP (like mathematical symbols)
+ * that use surrogate pairs in JavaScript strings.
  */
 export function splitWordAtORP(word: string): { before: string; orp: string; after: string } {
 	if (!word || word.length === 0) {
 		return { before: '', orp: '', after: '' };
 	}
 
+	// Convert to array of actual Unicode characters
+	const chars = toCharArray(word);
 	const orpIndex = getORPIndex(word);
 
 	return {
-		before: word.slice(0, orpIndex),
-		orp: word[orpIndex] || '',
-		after: word.slice(orpIndex + 1)
+		before: chars.slice(0, orpIndex).join(''),
+		orp: chars[orpIndex] || '',
+		after: chars.slice(orpIndex + 1).join('')
 	};
 }
 
@@ -101,8 +121,8 @@ export function calculateWordDuration(
 		duration *= punctuationDelayMultiplier;
 	}
 
-	// Extra time for long words
-	if (word.length >= longWordThreshold) {
+	// Extra time for long words (use Unicode-aware length)
+	if (toCharArray(word).length >= longWordThreshold) {
 		duration *= longWordDelayMultiplier;
 	}
 
