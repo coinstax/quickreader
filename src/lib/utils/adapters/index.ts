@@ -72,6 +72,58 @@ export async function parseFile(file: File) {
 
 	const result = await adapter.parse(file);
 
+	// Post-process: merge tiny pages (< 20 words of actual text)
+	// This prevents spine items like just "Prologue" or "I" from getting their own page
+	if (result.document?.pageStarts?.length > 1 && result.document?.words?.length > 0) {
+		const minWordsPerPage = 20;
+		const pageStarts = result.document.pageStarts;
+		const words = result.document.words;
+		const totalWords = words.length;
+
+		// Calculate which pages to merge
+		const newPageStarts: number[] = [0];
+		let currentMergedWordCount = 0;
+
+		for (let pageIdx = 0; pageIdx < pageStarts.length; pageIdx++) {
+			const pageStart = pageStarts[pageIdx];
+			const pageEnd = pageIdx + 1 < pageStarts.length ? pageStarts[pageIdx + 1] - 1 : totalWords - 1;
+
+			// Count non-empty words on this page
+			let nonEmptyCount = 0;
+			for (let i = pageStart; i <= pageEnd; i++) {
+				if (words[i]?.text?.trim()) nonEmptyCount++;
+			}
+
+			currentMergedWordCount += nonEmptyCount;
+
+			// If we've accumulated enough words, this marks the end of a merged page
+			// Start a new merged page at the next original page boundary
+			if (currentMergedWordCount >= minWordsPerPage && pageIdx + 1 < pageStarts.length) {
+				newPageStarts.push(pageStarts[pageIdx + 1]);
+				currentMergedWordCount = 0;
+			}
+		}
+
+		// Only update if we actually merged some pages
+		if (newPageStarts.length < pageStarts.length) {
+			// Update pageIndex on all words
+			for (let i = 0; i < words.length; i++) {
+				// Find which new page this word belongs to
+				let newPageIdx = 0;
+				for (let p = newPageStarts.length - 1; p >= 0; p--) {
+					if (i >= newPageStarts[p]) {
+						newPageIdx = p;
+						break;
+					}
+				}
+				words[i].pageIndex = newPageIdx;
+			}
+
+			result.document.pageStarts = newPageStarts;
+			result.document.totalPages = newPageStarts.length;
+		}
+	}
+
 	// Post-process: merge orphaned punctuation in words array
 	// This handles cases like "the end ." → "end." and "( text )" → "(text" "text)"
 	if (result.document?.words?.length > 0) {
