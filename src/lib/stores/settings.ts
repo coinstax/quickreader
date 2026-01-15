@@ -22,6 +22,7 @@ export interface Settings {
 	previewVisible: boolean;
 	previewWidth: number; // percentage (20-50)
 	pdfPreviewMode: 'text' | 'rendered'; // text extraction or rendered page image
+	customOrpColor: string | null; // null = use theme default, string = custom color
 }
 
 const defaultSettings: Settings = {
@@ -36,7 +37,8 @@ const defaultSettings: Settings = {
 	nameDelayMultiplier: 1.3,
 	previewVisible: true,
 	previewWidth: 35,
-	pdfPreviewMode: 'text'
+	pdfPreviewMode: 'text',
+	customOrpColor: null
 };
 
 function createSettingsStore() {
@@ -125,6 +127,13 @@ function createSettingsStore() {
 				return updated;
 			});
 		},
+		setCustomOrpColor: (color: string | null) => {
+			update(s => {
+				const updated = { ...s, customOrpColor: color };
+				saveSettings(updated);
+				return updated;
+			});
+		},
 		reset: () => {
 			set(defaultSettings);
 			saveSettings(defaultSettings);
@@ -136,5 +145,15 @@ export const settings = createSettingsStore();
 
 // Derived store for the current theme object
 export const currentTheme = derived(settings, ($settings): Theme => {
-	return THEMES[$settings.themeName] || THEMES[DEFAULT_THEME];
+	const baseTheme = THEMES[$settings.themeName] || THEMES[DEFAULT_THEME];
+
+	// Apply custom ORP color if set
+	if ($settings.customOrpColor) {
+		return {
+			...baseTheme,
+			orp: $settings.customOrpColor
+		};
+	}
+
+	return baseTheme;
 });

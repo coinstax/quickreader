@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { settings, currentTheme } from '../stores/settings';
-	import { THEMES, FONT_FAMILIES, MIN_FONT_SIZE, MAX_FONT_SIZE, FONT_SIZE_STEP } from '../constants';
+	import { THEMES, FONT_FAMILIES, MIN_FONT_SIZE, MAX_FONT_SIZE, FONT_SIZE_STEP, type Theme } from '../constants';
 	import { clearAllData } from '../utils/storage';
 
 	interface Props {
@@ -102,6 +102,21 @@
 		settings.update(s => ({ ...s, longWordDelayMultiplier: Number(target.value) }));
 	}
 
+	function handleOrpColorChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		settings.setCustomOrpColor(target.value);
+	}
+
+	function resetOrpColor() {
+		settings.setCustomOrpColor(null);
+	}
+
+	// Get the default ORP color from the current theme (without custom override)
+	const defaultOrpColor = $derived(THEMES[settingsValue.themeName]?.orp || THEMES.dark.orp);
+	const isCustomOrpColor = $derived(settingsValue.customOrpColor !== null);
+	// For "none" effect, use the text color
+	const currentOrpColor = $derived(settingsValue.customOrpColor || defaultOrpColor);
+
 	// Reset data state
 	let showResetConfirm = $state(false);
 	let isResetting = $state(false);
@@ -173,6 +188,41 @@
 							<option value={key}>{themeOption.name}</option>
 						{/each}
 					</select>
+				</section>
+
+				<!-- Focus Letter Color -->
+				<section class="setting-group">
+					<div class="setting-label-row">
+						<label for="orp-color-picker" class="setting-label">Focus Letter Color</label>
+						{#if isCustomOrpColor}
+							<button
+								class="btn-text"
+								onclick={resetOrpColor}
+								style:color={theme.orp}
+							>
+								Reset to default
+							</button>
+						{/if}
+					</div>
+					<div class="color-picker-row">
+						<input
+							id="orp-color-picker"
+							type="color"
+							value={currentOrpColor}
+							oninput={handleOrpColorChange}
+							class="color-picker"
+						/>
+						<span class="color-value">{currentOrpColor}</span>
+						<span
+							class="color-preview-text"
+							style:color={currentOrpColor}
+						>
+							Sample
+						</span>
+					</div>
+					<p class="setting-description">
+						Set to match text color for no highlight. {isCustomOrpColor ? '' : '(Using theme default)'}
+					</p>
 				</section>
 
 				<!-- Font Size -->
@@ -520,6 +570,63 @@
 	.setting-description.warning {
 		color: #ff6b6b;
 		opacity: 1;
+	}
+
+	.color-picker-row {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.color-picker {
+		width: 50px;
+		height: 40px;
+		padding: 0;
+		border: none;
+		border-radius: 6px;
+		cursor: pointer;
+		background: none;
+	}
+
+	.color-picker::-webkit-color-swatch-wrapper {
+		padding: 0;
+	}
+
+	.color-picker::-webkit-color-swatch {
+		border: 2px solid rgba(128, 128, 128, 0.3);
+		border-radius: 6px;
+	}
+
+	.color-picker::-moz-color-swatch {
+		border: 2px solid rgba(128, 128, 128, 0.3);
+		border-radius: 6px;
+	}
+
+	.color-value {
+		font-family: ui-monospace, monospace;
+		font-size: 0.85rem;
+		opacity: 0.7;
+	}
+
+	.color-preview-text {
+		font-size: 1.1rem;
+		font-weight: 500;
+		margin-left: auto;
+	}
+
+	.btn-text {
+		background: none;
+		border: none;
+		padding: 0.25rem 0.5rem;
+		font-size: 0.8rem;
+		cursor: pointer;
+		opacity: 0.8;
+		transition: opacity 0.2s;
+	}
+
+	.btn-text:hover {
+		opacity: 1;
+		text-decoration: underline;
 	}
 
 	.setting-danger-zone {
