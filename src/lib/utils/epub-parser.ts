@@ -622,15 +622,10 @@ export async function parseEpub(file: File, targetWordsPerPage = 250): Promise<P
 		parseWarnings.push('No spine items found in EPUB - the file may be malformed or use an unsupported format');
 	}
 
-	// Minimum words before forcing a page break at chapter boundaries
-	// This prevents tiny spine items (like just a title) from getting their own page
-	const minWordsForPageBreak = 20;
-
 	// Process each spine item (section/chapter)
 	for (const spineItem of spineItems) {
-		// Start a new page at chapter boundary only if current page has substantial content
-		// This groups tiny chapters (like title pages, section markers) with following content
-		if (wordIndex > 0 && wordsOnCurrentPage >= minWordsForPageBreak) {
+		// Start a new page at each chapter boundary (if not at start)
+		if (wordIndex > 0 && wordsOnCurrentPage > 0) {
 			currentPage++;
 			pageStarts.push(wordIndex);
 			wordsOnCurrentPage = 0;
