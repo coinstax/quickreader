@@ -236,6 +236,19 @@ function getORPIndex(word: string): number {
 - Long word delay: 1.2x multiplier for words with 10+ characters
 - Name/proper noun delay: 1.3x multiplier for capitalized words (not all-caps)
 
+### EPUB Parsing Notes (`src/lib/utils/epub-parser.ts`)
+- **XHTML self-closing tags**: EPUBs use XHTML which allows `<a id="x"/>`. When parsed as HTML, these become unclosed tags. Use `sanitizeXhtmlSelfClosingTags()` to convert to `<a id="x"></a>` before parsing.
+- **Bookmark anchors**: Anchor tags with `id` but no `href` are bookmarks, not links. CSS should only style `a[href]` to avoid visual issues.
+- **SVG content**: Skip SVG elements in word extraction - they contain `<text>` elements that shouldn't be read aloud.
+- **Decorative punctuation**: Filter out standalone asterisks, dashes, etc. used as scene separators (`isDecorativePunctuation()`).
+- **Word sync**: Word indices must match between RSVP word list and preview HTML markers. Any filtering (decorative punctuation, SVG) must be applied consistently in both places.
+
+### Interactive Welcome Demo (`src/lib/stores/reader.ts`)
+- The welcome.txt file has speed triggers (e.g., "350 WPM") that auto-change the reading speed
+- Pattern: 3-digit number followed by "WPM" triggers speed change
+- Only active for `welcome.txt` file to avoid affecting other content
+- Speed resets to 300 WPM when returning to start of welcome guide
+
 ### Keyboard Shortcuts
 | Key | Action |
 |-----|--------|
