@@ -625,9 +625,9 @@
 		outline-offset: 0px;
 	}
 
-	/* Subtle highlight when actively reading - not distracting in peripheral vision */
+	/* Subtle highlight when actively reading - visible but not distracting */
 	.preview-container.is-playing .page-box :global([data-word-index].current) {
-		background-color: rgba(128, 128, 128, 0.15);
+		background-color: rgba(128, 128, 128, 0.35);
 		color: inherit;
 		outline: none;
 	}
@@ -777,7 +777,7 @@
 
 	/* Subtle highlight when actively reading */
 	.pdf-rendered-container.is-playing .pdf-text-layer :global(.pdf-word.current) {
-		background-color: rgba(128, 128, 128, 0.3);
+		background-color: rgba(128, 128, 128, 0.5);
 		opacity: 1;
 	}
 
