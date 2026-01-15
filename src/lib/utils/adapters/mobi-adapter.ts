@@ -103,7 +103,11 @@ function escapeHtml(text: string): string {
 /**
  * Parse MOBI HTML content into structured data with chapters and preview.
  */
-function parseMobiContent(html: string, targetWordsPerPage = 250): {
+function parseMobiContent(
+	html: string,
+	targetWordsPerPage = 250,
+	imageMap: Map<number, string> = new Map()
+): {
 	document: ParsedDocument;
 	chapters: MobiChapter[];
 	preview: PreviewContent;
@@ -184,6 +188,7 @@ function parseMobiContent(html: string, targetWordsPerPage = 250): {
 	let currentChapterIndex = 0;
 	let currentChapterWordStart = 0;
 	let currentChapterHtml: string[] = [];
+	let chapterImageUrls = new Map<string, string>();
 
 	// Block-level tags that define paragraphs
 	const blockTags = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote', 'section', 'article']);
@@ -242,6 +247,35 @@ function parseMobiContent(html: string, targetWordsPerPage = 250): {
 				return;
 			}
 
+			// Handle images
+			if (tagName === 'img') {
+				// Try to resolve image source
+				const recindex = el.getAttribute('recindex');
+				const src = el.getAttribute('src');
+				let blobUrl: string | undefined;
+
+				if (recindex) {
+					// MOBI uses recindex to reference image records
+					const recordNum = parseInt(recindex, 10);
+					blobUrl = imageMap.get(recordNum);
+				} else if (src) {
+					// Try to extract record number from src like "kindle:embed:0001"
+					const match = src.match(/(\d+)/);
+					if (match) {
+						const recordNum = parseInt(match[1], 10);
+						blobUrl = imageMap.get(recordNum);
+					}
+				}
+
+				if (blobUrl) {
+					const alt = el.getAttribute('alt') || 'Image';
+					currentChapterHtml.push(`<img src="${blobUrl}" alt="${escapeHtml(alt)}" style="max-width: 100%; height: auto;" />`);
+					// Track image URL for cleanup
+					chapterImageUrls.set(src || recindex || '', blobUrl);
+				}
+				return;
+			}
+
 			// Check if this element starts a new chapter
 			const chapterMatch = chapterElements.find(c => c.element === el);
 			if (chapterMatch && wordIndex > 0) {
@@ -257,7 +291,7 @@ function parseMobiContent(html: string, targetWordsPerPage = 250): {
 						chapterIndex: currentChapterIndex,
 						htmlWithMarkers: currentChapterHtml.join(''),
 						wordRange: [currentChapterWordStart, wordIndex - 1],
-						imageUrls: new Map()
+						imageUrls: new Map(chapterImageUrls)
 					});
 				}
 
@@ -265,6 +299,7 @@ function parseMobiContent(html: string, targetWordsPerPage = 250): {
 				currentChapterIndex++;
 				currentChapterWordStart = wordIndex;
 				currentChapterHtml = [];
+				chapterImageUrls = new Map();
 
 				// Start new page for chapter
 				if (wordsOnCurrentPage > 0) {
@@ -336,7 +371,7 @@ function parseMobiContent(html: string, targetWordsPerPage = 250): {
 			chapterIndex: currentChapterIndex,
 			htmlWithMarkers: currentChapterHtml.join(''),
 			wordRange: [currentChapterWordStart, wordIndex - 1],
-			imageUrls: new Map()
+			imageUrls: new Map(chapterImageUrls)
 		});
 	}
 
@@ -352,7 +387,7 @@ function parseMobiContent(html: string, targetWordsPerPage = 250): {
 			chapterIndex: 0,
 			htmlWithMarkers: currentChapterHtml.join(''),
 			wordRange: [0, words.length - 1],
-			imageUrls: new Map()
+			imageUrls: new Map(chapterImageUrls)
 		});
 	}
 
@@ -375,6 +410,32 @@ function parseMobiContent(html: string, targetWordsPerPage = 250): {
 }
 
 /**
+ * Detect image type from first bytes.
+ */
+function detectImageType(data: Uint8Array): string | null {
+	if (data.length < 4) return null;
+
+	// JPEG: FF D8 FF
+	if (data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF) {
+		return 'image/jpeg';
+	}
+	// PNG: 89 50 4E 47
+	if (data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47) {
+		return 'image/png';
+	}
+	// GIF: 47 49 46 38
+	if (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46 && data[3] === 0x38) {
+		return 'image/gif';
+	}
+	// BMP: 42 4D
+	if (data[0] === 0x42 && data[1] === 0x4D) {
+		return 'image/bmp';
+	}
+
+	return null;
+}
+
+/**
  * Parse a MOBI/AZW file.
  */
 async function parseMobiFile(file: File): Promise<{
@@ -383,10 +444,12 @@ async function parseMobiFile(file: File): Promise<{
 	chapters: MobiChapter[];
 	preview: PreviewContent;
 	warnings: string[];
+	imageMap: Map<number, string>; // record index -> blob URL
 }> {
 	const warnings: string[] = [];
 	const arrayBuffer = await file.arrayBuffer();
 	const data = new DataView(arrayBuffer);
+	const imageMap = new Map<number, string>();
 
 	// Check minimum file size
 	if (arrayBuffer.byteLength < 100) {
@@ -424,6 +487,21 @@ async function parseMobiFile(file: File): Promise<{
 
 	// Read text record count (offset 8 in record 0)
 	const textRecordCount = data.getUint16(record0Start + 8, false);
+
+	// Read first image record from MOBI header (offset 108 from MOBI header start, which is at record0Start + 16)
+	let firstImageRecord = 0;
+	if (mobiIdentStr === 'MOBI') {
+		try {
+			// MOBI header length at offset 20
+			const mobiHeaderLength = data.getUint32(record0Start + 20, false);
+			if (mobiHeaderLength >= 108) {
+				// First image record index at offset 108 from start of MOBI header (record0Start + 16)
+				firstImageRecord = data.getUint32(record0Start + 16 + 92, false);
+			}
+		} catch {
+			// Ignore, will try to detect images by content
+		}
+	}
 
 	// Get full name from MOBI header if available
 	let title = palmHeader.name;
@@ -487,21 +565,44 @@ async function parseMobiFile(file: File): Promise<{
 		}
 	}
 
+	// Extract image records
+	const imageStartRecord = firstImageRecord > 0 ? firstImageRecord : textRecordCount + 1;
+	for (let i = imageStartRecord; i < palmHeader.recordOffsets.length; i++) {
+		const recordStart = palmHeader.recordOffsets[i];
+		const recordEnd = i + 1 < palmHeader.recordOffsets.length
+			? palmHeader.recordOffsets[i + 1]
+			: arrayBuffer.byteLength;
+
+		const recordData = new Uint8Array(arrayBuffer, recordStart, recordEnd - recordStart);
+		const imageType = detectImageType(recordData);
+
+		if (imageType) {
+			const blob = new Blob([recordData], { type: imageType });
+			const blobUrl = URL.createObjectURL(blob);
+			// Store with 1-based index relative to first image record
+			const imageIndex = i - imageStartRecord + 1;
+			imageMap.set(imageIndex, blobUrl);
+			// Also store with absolute record index for some MOBI formats
+			imageMap.set(i, blobUrl);
+		}
+	}
+
 	const fullText = textParts.join('');
 
 	if (fullText.length === 0) {
 		throw new Error('No text content found in MOBI file');
 	}
 
-	// Parse the HTML content with chapter detection
-	const parsed = parseMobiContent(fullText);
+	// Parse the HTML content with chapter detection and image mapping
+	const parsed = parseMobiContent(fullText, 250, imageMap);
 
 	return {
 		document: parsed.document,
 		title,
 		chapters: parsed.chapters,
 		preview: parsed.preview,
-		warnings
+		warnings,
+		imageMap
 	};
 }
 
