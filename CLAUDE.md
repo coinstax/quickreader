@@ -212,6 +212,11 @@ npm run build        # Production build
 npm run preview      # Preview production build
 ```
 
+## Development Workflow
+
+- **Commit after each change**: Create a git commit after completing each feature, bug fix, or chore. Use clear, descriptive commit messages.
+- **Commit message format**: Start with a verb (Add, Fix, Update, Remove, Refactor) followed by a brief description.
+
 ## Key Implementation Notes
 
 ### ORP Calculation (`src/lib/utils/orp.ts`)
