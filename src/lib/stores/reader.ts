@@ -18,6 +18,33 @@ import {
 } from '../utils/epub-parser';
 import { saveProgress, loadProgress } from '../utils/storage';
 
+/**
+ * Check if the current word triggers an auto-speed change.
+ * Pattern: 3-digit number (100-900) followed by "WPM"
+ * Only triggers for welcome.txt to create an interactive speed demo.
+ */
+function checkSpeedTrigger(
+	words: { text: string }[],
+	currentIndex: number,
+	fileName: string | undefined
+): number | null {
+	// Only trigger for the welcome tutorial file
+	if (fileName !== 'welcome.txt') return null;
+
+	const word = words[currentIndex]?.text;
+	const nextWord = words[currentIndex + 1]?.text?.toLowerCase();
+
+	// Check for pattern: 3-digit NUMBER followed by "wpm"
+	const speedMatch = word?.match(/^(\d{3})$/);
+	if (speedMatch && nextWord === 'wpm') {
+		const speed = parseInt(speedMatch[1], 10);
+		if (speed >= 100 && speed <= 900) {
+			return speed;
+		}
+	}
+	return null;
+}
+
 export interface ReaderState {
 	wordIndex: number;
 	isPlaying: boolean;
@@ -77,9 +104,23 @@ function createReaderStore() {
 			return;
 		}
 
+		// For welcome.txt demo: reset to 300 WPM at the start
+		if (doc.fileName === 'welcome.txt' && state.wordIndex === 0 && currentSettings.wpm !== 300) {
+			settings.setWpm(300);
+		}
+
+		// Check for speed triggers in welcome.txt demo
+		const newSpeed = checkSpeedTrigger(words, state.wordIndex, doc.fileName);
+		if (newSpeed && newSpeed !== currentSettings.wpm) {
+			settings.setWpm(newSpeed);
+		}
+
+		// Use the new speed if triggered, otherwise use current settings
+		const effectiveWpm = newSpeed || currentSettings.wpm;
+
 		const duration = calculateWordDuration(
 			currentWord.text,
-			currentSettings.wpm,
+			effectiveWpm,
 			currentSettings.pauseOnPunctuation ? currentSettings.punctuationDelayMultiplier : 1,
 			currentSettings.longWordDelayMultiplier,
 			10, // longWordThreshold

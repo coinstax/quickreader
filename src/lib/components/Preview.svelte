@@ -790,8 +790,8 @@
 		margin: 0.25em 0;
 	}
 
-	/* Link styling */
-	.page-box :global(a) {
+	/* Link styling - only for actual links, not bookmark anchors */
+	.page-box :global(a[href]) {
 		color: var(--orp-color);
 		text-decoration: underline;
 	}

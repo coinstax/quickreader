@@ -1,27 +1,53 @@
-Welcome to QuickReader
+Welcome to QuickReader!
 
-This is a speed reading application using RSVP - Rapid Serial Visual Presentation. Words are displayed one at a time at a fixed focal point, eliminating the need for eye movement across the page.
+You are reading at 300 words per minute right now. This is a comfortable starting speed for most readers. Notice the red letter in each word? That is called the Optimal Recognition Point. Your eye naturally focuses on this spot for fastest word recognition. Keep your gaze fixed right there and let the words flow to you. Do not move your eyes. Just relax and read.
 
-How It Works
+Ready to go a little faster? Here comes 350 WPM in just a moment.
 
-The red letter in each word marks the Optimal Recognition Point. Your eye naturally focuses here, allowing faster word recognition. Keep your gaze fixed on this point and let the words flow.
+Good work! You are now reading at three hundred and fifty words per minute. The words flow more quickly but your brain keeps up just fine. This is the key insight of speed reading. Your brain can process words much faster than you normally read. Trust the process and stay relaxed. Keep your eyes on that red focal point.
 
-Getting Started
+Now let us increase to 400 WPM and see how it feels.
 
-Use the speed slider to adjust your reading pace. Most people start comfortably around 250-300 words per minute. As you practice, you can gradually increase to 400, 500, or even higher.
+Excellent! Four hundred words per minute is faster than most people read on paper. You are doing great. Notice how your eyes stay fixed in one place while words appear and disappear. There is no need to move your eyes left and right like normal reading. This saves a huge amount of time and mental effort. Keep going!
 
-The controls at the bottom let you play, pause, and navigate. Use the arrow keys for quick navigation - left and right move by word, and Page Up and Page Down jump between pages.
+Time for 450 WPM so here we go right now.
 
-Tips for Speed Reading
+Great job! At this speed you are reading quite fast. The key technique is to stop subvocalizing. That means stop saying the words in your head as you read them. Just see the words and understand them directly. Your brain does not need that inner voice. Let the meaning flow straight from your eyes to your understanding.
 
-Trust your brain. Even if words seem to flash by quickly, your mind is processing them. Resist the urge to subvocalize - that inner voice that "speaks" each word slows you down.
+Now 500 WPM is coming up next.
 
-Practice regularly. Like any skill, speed reading improves with consistent practice. Start with easier content and work up to more complex material.
+Halfway to maximum speed! You are doing fantastic. Short sentences help at higher speeds. Keep your focus on the red letter. Stay relaxed. Breathe normally. Your brain is handling this easily. Trust yourself and keep reading. The more you practice this the easier it becomes over time.
 
-Take breaks. Speed reading requires concentration. Short, focused sessions are more effective than long, fatigued ones.
+Increasing to 550 WPM right now.
 
-Try It Now
+Your brain is truly amazing. It can process words faster than you ever thought possible. Most people never try reading this fast. But here you are doing it! Stay relaxed and keep your eyes still. Let the words come to you. Do not chase them. Just receive them calmly.
 
-Press the play button or hit spacebar to begin. Watch the focal point and let the words come to you. You might be surprised how much you comprehend at higher speeds.
+Here comes 600 WPM speed.
 
-Happy reading!
+This is twice as fast as average reading! Your peripheral vision is helping now. The red letter anchors your focus while context fills in around it. Some people read entire novels at this pace. With practice you could too.
+
+Now 650 WPM let us go.
+
+At this speed you are processing about eleven words per second. Your brain uses pattern recognition to grab meaning instantly. No time for inner voice now. Pure visual comprehension.
+
+Time for 700 WPM right now.
+
+Seven hundred! You have entered elite territory. Only speed readers hit these numbers. Your eyes are still. Your mind is flying. This is what focused attention feels like.
+
+Here is 750 WPM speed.
+
+Three quarters to max! The words blur together into meaning. Individual letters matter less. Whole word shapes carry the message now.
+
+Now 800 WPM go!
+
+Zoom! The screen flickers with text. Blink and you miss words. Yet somehow you understand. Your brain is remarkable.
+
+Here comes 850 WPM now.
+
+Almost there! Final stretch! The peak awaits! Push through! You can do this!
+
+Maximum 900 WPM here!
+
+Nine hundred! Maximum speed achieved! You are reading fifteen words per second! Incredible!
+
+Done! You just experienced RSVP speed reading from 300 all the way to 900 words per minute. Most people find their comfortable pace somewhere between 350 and 500 WPM. Use the speed slider below to find what works best for you. Load a book and enjoy fast reading. Happy reading!

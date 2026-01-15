@@ -64,6 +64,48 @@ function splitOnDashes(word: string): string[] {
 	return result.filter(w => w.length > 0);
 }
 
+/**
+ * Convert XHTML self-closing tags on non-void elements to proper open/close pairs.
+ * This fixes issues like `<a id="chap01"/>` being parsed as an unclosed anchor tag.
+ * HTML5 void elements (that can be self-closing): area, base, br, col, embed, hr, img,
+ * input, link, meta, param, source, track, wbr
+ */
+function sanitizeXhtmlSelfClosingTags(html: string): string {
+	// HTML5 void elements that are allowed to be self-closing
+	const voidElements = new Set([
+		'area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input',
+		'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'
+	]);
+
+	// Match self-closing tags: <tagname ... />
+	// Group 1: tag name, Group 2: attributes (if any)
+	return html.replace(/<(\w+)([^>]*?)\s*\/>/gi, (match, tagName, attrs) => {
+		const tag = tagName.toLowerCase();
+		if (voidElements.has(tag)) {
+			// Keep void elements as-is (or normalize to non-self-closing for HTML5)
+			return `<${tagName}${attrs}>`;
+		}
+		// Convert non-void self-closing tags to open/close pairs
+		return `<${tagName}${attrs}></${tagName}>`;
+	});
+}
+
+/**
+ * Check if a word is purely decorative punctuation that shouldn't be read aloud.
+ * This includes asterisks used as scene separators, dashes as dividers, etc.
+ */
+function isDecorativePunctuation(word: string): boolean {
+	// Skip words that are only asterisks (scene separators like "* * *")
+	if (/^\*+$/.test(word)) return true;
+	// Skip words that are only dashes/underscores (dividers like "---" or "___")
+	if (/^[-_]+$/.test(word)) return true;
+	// Skip words that are only dots (dividers like "...")
+	if (/^\.{4,}$/.test(word)) return true;
+	// Skip words that are only tildes (dividers like "~~~")
+	if (/^~+$/.test(word)) return true;
+	return false;
+}
+
 interface FormattedWord {
 	text: string;
 	italic: boolean;
@@ -93,14 +135,16 @@ function extractParagraphBlocks(element: Element): ParagraphBlock[] {
 			const splitWords = rawWords.flatMap(splitOnDashes);
 
 			for (const word of splitWords) {
+				// Skip decorative punctuation like asterisks used as scene separators
+				if (isDecorativePunctuation(word)) continue;
 				words.push({ text: word, italic, bold });
 			}
 		} else if (node.nodeType === Node.ELEMENT_NODE) {
 			const el = node as Element;
 			const tagName = el.tagName.toLowerCase();
 
-			// Skip script and style tags
-			if (tagName === 'script' || tagName === 'style') {
+			// Skip script, style, and svg tags
+			if (tagName === 'script' || tagName === 'style' || tagName === 'svg') {
 				return words;
 			}
 
@@ -125,7 +169,7 @@ function extractParagraphBlocks(element: Element): ParagraphBlock[] {
 		const tagName = el.tagName.toLowerCase();
 
 		// Skip non-content elements
-		if (tagName === 'script' || tagName === 'style' || tagName === 'nav' || tagName === 'header' || tagName === 'footer') {
+		if (tagName === 'script' || tagName === 'style' || tagName === 'svg' || tagName === 'nav' || tagName === 'header' || tagName === 'footer') {
 			return;
 		}
 
@@ -203,6 +247,8 @@ function extractFormattedWords(element: Element): FormattedWord[] {
 			const splitWords = rawWords.flatMap(splitOnDashes);
 
 			for (const word of splitWords) {
+				// Skip decorative punctuation like asterisks used as scene separators
+				if (isDecorativePunctuation(word)) continue;
 				words.push({ text: word, italic, bold });
 			}
 		} else if (node.nodeType === Node.ELEMENT_NODE) {
@@ -296,6 +342,8 @@ function extractRawWordsFromElement(element: Element): { words: string[]; isImag
 		for (const part of parts) {
 			const subWords = splitOnDashes(part);
 			for (const subWord of subWords) {
+				// Skip decorative punctuation (asterisks, etc.)
+				if (isDecorativePunctuation(subWord)) continue;
 				words.push(subWord);
 				isImage.push(false);
 			}
@@ -478,6 +526,17 @@ function injectWordMarkers(element: Element, startWordIndex: number): MarkedHtml
 				const subWords = splitOnDashes(part);
 				for (let i = 0; i < subWords.length; i++) {
 					const subWord = subWords[i];
+
+					// Skip decorative punctuation (asterisks, etc.) - don't count as words
+					if (isDecorativePunctuation(subWord)) {
+						// Still display it, just without a word index
+						fragment.appendChild(document.createTextNode(subWord));
+						if (i < subWords.length - 1) {
+							fragment.appendChild(document.createTextNode(' '));
+						}
+						continue;
+					}
+
 					const mergedIdx = rawToMergedIndex[rawWordIndex] ?? rawWordIndex + startWordIndex;
 
 					const span = document.createElement('span');
@@ -815,22 +874,12 @@ export async function parseEpub(file: File, targetWordsPerPage = 250): Promise<P
 				continue;
 			}
 
+			// Load content via epub.js
 			let contents: string | Document | null = null;
 			try {
 				contents = await section.load(book.load.bind(book));
 			} catch (loadErr) {
 				console.warn('Section load error:', loadErr);
-				// Try alternative loading method
-				try {
-					const url = await book.resolve(spineItem.href || spineItem.idref);
-					if (url) {
-						const response = await fetch(url);
-						const html = await response.text();
-						contents = html;
-					}
-				} catch {
-					// Ignore fetch errors
-				}
 			}
 
 			if (!contents) {
@@ -851,23 +900,14 @@ export async function parseEpub(file: File, targetWordsPerPage = 250): Promise<P
 				if (!bodyEl) {
 					bodyEl = el.getElementsByTagName('body')[0] || null;
 				}
-				if (!bodyEl && el.children) {
-					for (let i = 0; i < el.children.length; i++) {
-						if (el.children[i].tagName.toLowerCase() === 'body') {
-							bodyEl = el.children[i];
-							break;
-						}
-					}
-				}
 				contentElement = bodyEl || el;
 			} else if (contents instanceof Document) {
-				if (contents.body) {
-					contentElement = contents.body;
-				}
+				contentElement = contents.body || contents.documentElement;
 			} else if (typeof contents === 'string') {
 				try {
 					const parser = new DOMParser();
-					const doc = parser.parseFromString(contents, 'text/html');
+					const sanitizedContents = sanitizeXhtmlSelfClosingTags(contents);
+					const doc = parser.parseFromString(sanitizedContents, 'text/html');
 					if (doc.body) {
 						contentElement = doc.body;
 					}
@@ -884,11 +924,13 @@ export async function parseEpub(file: File, targetWordsPerPage = 250): Promise<P
 				// Fallback: treat entire content as one block
 				const textContent = (contents as any)?.textContent || '';
 				const rawWords = textContent.split(/\s+/).filter((w: string) => w.length > 0);
-				formattedWords = rawWords.flatMap(splitOnDashes).map((text: string) => ({
-					text,
-					italic: false,
-					bold: false
-				}));
+				formattedWords = rawWords.flatMap(splitOnDashes)
+					.filter((text: string) => !isDecorativePunctuation(text))
+					.map((text: string) => ({
+						text,
+						italic: false,
+						bold: false
+					}));
 				if (formattedWords.length > 0) {
 					paragraphBlocks = [{ words: formattedWords }];
 				}

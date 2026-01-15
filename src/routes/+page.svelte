@@ -22,9 +22,9 @@
 	// Sample files available for first-time users
 	const sampleFiles = [
 		{ name: 'welcome.txt', title: 'QuickReader Guide', description: 'Learn how to use RSVP speed reading' },
+		{ name: 'short-story.txt', title: 'Short Story', description: 'A brief tale to practice with' },
 		{ name: 'the-signal.epub', title: 'The Signal (EPUB)', description: 'A sci-fi story with chapters' },
-		{ name: 'alice-wonderland.azw3', title: 'Alice in Wonderland', description: 'Classic tale with illustrations' },
-		{ name: 'short-story.txt', title: 'Short Story', description: 'A brief tale to practice with' }
+		{ name: 'alice-wonderland.epub', title: 'Alice in Wonderland', description: 'Classic tale with chapters' }
 	];
 
 	// Set of sample file names for quick lookup
