@@ -22,6 +22,60 @@ export interface ParsedDocument {
 }
 
 /**
+ * Merge orphaned punctuation with adjacent words.
+ * "the end ." becomes ["the", "end."]
+ * "( some text )" becomes ["(some", "text)"]
+ * "here ( something ), there" becomes ["here", "(something),", "there"]
+ */
+export function mergeOrphanedPunctuation(words: string[]): string[] {
+	if (words.length === 0) return words;
+
+	const result: string[] = [];
+	const leadingPunctuation = /^[(\[{"\u201C\u2018]+$/;  // Opening brackets/quotes
+	const trailingPunctuation = /^[)\]}"'\u201D\u2019.,;:!?]+$/;  // Closing brackets/quotes/punctuation
+
+	let i = 0;
+	while (i < words.length) {
+		const word = words[i];
+
+		// Check if this is leading punctuation that should attach to next word
+		if (leadingPunctuation.test(word) && i + 1 < words.length) {
+			// Attach to next word
+			let merged = word + words[i + 1];
+			i += 2;
+
+			// Also check if there's trailing punctuation after that should attach
+			while (i < words.length && trailingPunctuation.test(words[i])) {
+				merged += words[i];
+				i++;
+			}
+
+			result.push(merged);
+			continue;
+		}
+
+		// Check if next word is trailing punctuation that should attach to this word
+		if (i + 1 < words.length && trailingPunctuation.test(words[i + 1])) {
+			// Attach all consecutive trailing punctuation to this word
+			let merged = word;
+			i++;
+			while (i < words.length && trailingPunctuation.test(words[i])) {
+				merged += words[i];
+				i++;
+			}
+			result.push(merged);
+			continue;
+		}
+
+		// Standalone punctuation that couldn't be merged - still include it
+		result.push(word);
+		i++;
+	}
+
+	return result;
+}
+
+/**
  * Split a word on em-dashes, en-dashes, ellipsis, and long hyphenated compounds.
  * "consciousness—seemed" becomes ["consciousness—", "seemed"]
  * "delusion…created" becomes ["delusion…", "created"]
