@@ -334,3 +334,33 @@ export function showAllImages(fileKey: string): void {
 		saveAllBookPrefs(prefs);
 	}
 }
+
+/**
+ * Clear all stored data (localStorage and IndexedDB).
+ * This resets the app to its initial state.
+ */
+export async function clearAllData(): Promise<void> {
+	// Clear all localStorage
+	try {
+		localStorage.clear();
+	} catch (e) {
+		console.error('Failed to clear localStorage:', e);
+	}
+
+	// Clear IndexedDB
+	try {
+		const db = await openDB();
+		const transaction = db.transaction(FILE_STORE, 'readwrite');
+		const store = transaction.objectStore(FILE_STORE);
+		store.clear();
+
+		await new Promise<void>((resolve, reject) => {
+			transaction.oncomplete = () => resolve();
+			transaction.onerror = () => reject(transaction.error);
+		});
+
+		db.close();
+	} catch (e) {
+		console.error('Failed to clear IndexedDB:', e);
+	}
+}

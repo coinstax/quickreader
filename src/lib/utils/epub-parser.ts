@@ -249,8 +249,8 @@ function injectWordMarkers(element: Element, startWordIndex: number): MarkedHtml
 	const imageSrcs: string[] = [];
 
 	// Collect image sources (case-insensitive for XHTML compatibility)
-	clone.querySelectorAll('img, IMG, image').forEach(img => {
-		const src = img.getAttribute('src') || img.getAttribute('xlink:href');
+	clone.querySelectorAll('img, IMG, image, IMAGE').forEach(img => {
+		const src = img.getAttribute('src') || img.getAttribute('xlink:href') || img.getAttribute('href');
 		if (src) imageSrcs.push(src);
 	});
 
@@ -294,6 +294,9 @@ function injectWordMarkers(element: Element, startWordIndex: number): MarkedHtml
 			if (tagName === 'IMG' || tagName === 'IMAGE' || tagName === 'SVG') {
 				// Mark image/SVG with current word index so it appears on the correct page
 				(node as Element).setAttribute('data-word-index', String(currentIndex));
+				// Increment word index for images so image-only chapters get their own word range
+				// This prevents overlapping word ranges between chapters
+				currentIndex++;
 				continue;
 			}
 		}
@@ -355,11 +358,14 @@ async function resolveImageUrls(
 
 	for (const src of imageSrcs) {
 		try {
-			// Resolve relative path to absolute path within EPUB
+			// Resolve path to find file within EPUB archive
 			let resolvedPath = src;
-			if (src.startsWith('../') || src.startsWith('./') || !src.startsWith('/')) {
-				// Build absolute path from chapter location
-				// The chapter href might not include the package directory, so we need to add it
+
+			if (src.startsWith('/')) {
+				// Absolute path within EPUB - strip leading slash and try with package dir
+				resolvedPath = packageDir + src.substring(1);
+			} else if (src.startsWith('../') || src.startsWith('./') || !src.includes('://')) {
+				// Relative path - resolve from chapter location
 				const fullChapterPath = packageDir + chapterHref;
 				const chapterDir = fullChapterPath.substring(0, fullChapterPath.lastIndexOf('/') + 1);
 				resolvedPath = chapterDir + src;
@@ -388,7 +394,7 @@ async function resolveImageUrls(
 			}
 
 			// Method 2: If that didn't work, try without the package directory
-			if (!blob && archive?.zip?.file && packageDir) {
+			if (!blob && archive?.zip?.file) {
 				try {
 					// Remove package directory prefix if present
 					const pathWithoutPkg = resolvedPath.startsWith(packageDir)
@@ -403,23 +409,67 @@ async function resolveImageUrls(
 				}
 			}
 
-			// Method 3: Try listing all files to find a match
+			// Method 3: For absolute paths, try just stripping the leading slash
+			if (!blob && archive?.zip?.file && src.startsWith('/')) {
+				try {
+					const pathWithoutSlash = src.substring(1);
+					const zipFile = archive.zip.file(pathWithoutSlash);
+					if (zipFile) {
+						blob = await zipFile.async('blob');
+					}
+				} catch (e) {
+					// Failed, try next method
+				}
+			}
+
+			// Method 4: Try listing all files to find a match by filename (case-insensitive)
 			if (!blob && archive?.zip?.files) {
 				try {
 					const files = archive.zip.files;
-					const fileName = resolvedPath.split('/').pop();
-					// Look for a file with matching name
-					for (const path of Object.keys(files)) {
-						if (path.endsWith('/' + fileName) || path === fileName) {
-							const zipFile = files[path];
-							if (!zipFile.dir) {
-								blob = await zipFile.async('blob');
-								break;
+					// Get just the filename from the original src
+					const fileName = src.split('/').pop()?.toLowerCase();
+					if (fileName) {
+						// Look for a file with matching name (case-insensitive)
+						for (const path of Object.keys(files)) {
+							const pathLower = path.toLowerCase();
+							if (pathLower.endsWith('/' + fileName) || pathLower === fileName) {
+								const zipFile = files[path];
+								if (!zipFile.dir) {
+									blob = await zipFile.async('blob');
+									break;
+								}
 							}
 						}
 					}
 				} catch (e) {
 					// file search method failed
+				}
+			}
+
+			// Method 5: Try common EPUB image directory patterns
+			if (!blob && archive?.zip?.file) {
+				const fileName = src.split('/').pop();
+				const commonPaths = [
+					`images/${fileName}`,
+					`Images/${fileName}`,
+					`OEBPS/images/${fileName}`,
+					`OEBPS/Images/${fileName}`,
+					`OPS/images/${fileName}`,
+					`OPS/Images/${fileName}`,
+					fileName // root level
+				];
+				for (const tryPath of commonPaths) {
+					if (tryPath) {
+						try {
+							const zipFile = archive.zip.file(tryPath);
+							if (zipFile) {
+								blob = await zipFile.async('blob');
+								break;
+							}
+						} catch (e) {
+							// continue trying
+						}
+					}
 				}
 			}
 
@@ -437,19 +487,62 @@ async function resolveImageUrls(
 
 /**
  * Replace image src attributes in HTML with resolved blob URLs.
+ * Images that couldn't be resolved are replaced with placeholders to prevent external loading.
+ * Uses DOM parsing for reliable handling of all image formats.
  */
 function replaceImageUrls(html: string, urlMap: Map<string, string>): string {
-	let result = html;
-	for (const [original, blobUrl] of urlMap) {
-		// Escape special regex characters
-		const escaped = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		// Replace src and add data-original-src attribute for identification
-		result = result.replace(
-			new RegExp(`src=["']${escaped}["']`, 'g'),
-			`src="${blobUrl}" data-original-src="${original}"`
-		);
-	}
-	return result;
+	const placeholder = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+	// Parse HTML as a document fragment
+	const parser = new DOMParser();
+	const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
+	const container = doc.body.firstChild as Element;
+
+	// Process all img elements
+	container.querySelectorAll('img, IMG').forEach(img => {
+		const src = img.getAttribute('src');
+		if (src) {
+			const blobUrl = urlMap.get(src);
+			img.setAttribute('data-original-src', src);
+			if (blobUrl) {
+				img.setAttribute('src', blobUrl);
+			} else {
+				// Replace with placeholder and hide
+				img.setAttribute('src', placeholder);
+				img.setAttribute('data-missing', 'true');
+				img.setAttribute('style', 'display:none');
+			}
+		}
+	});
+
+	// Process all SVG image elements (both xlink:href and href)
+	container.querySelectorAll('image, IMAGE').forEach(img => {
+		const src = img.getAttribute('xlink:href') || img.getAttribute('href');
+		if (src) {
+			const blobUrl = urlMap.get(src);
+			img.setAttribute('data-original-src', src);
+			if (blobUrl) {
+				if (img.hasAttribute('xlink:href')) {
+					img.setAttribute('xlink:href', blobUrl);
+				}
+				if (img.hasAttribute('href')) {
+					img.setAttribute('href', blobUrl);
+				}
+			} else {
+				// Replace with placeholder and hide
+				if (img.hasAttribute('xlink:href')) {
+					img.setAttribute('xlink:href', placeholder);
+				}
+				if (img.hasAttribute('href')) {
+					img.setAttribute('href', placeholder);
+				}
+				img.setAttribute('data-missing', 'true');
+				img.setAttribute('style', 'display:none');
+			}
+		}
+	});
+
+	return container.innerHTML;
 }
 
 /**
@@ -638,10 +731,12 @@ export async function parseEpub(file: File, targetWordsPerPage = 250): Promise<P
 			}
 
 			// Generate marked HTML for preview if we have a content element
+			let markedWordCount = 0;
 			if (contentElement) {
 				const markedResult = injectWordMarkers(contentElement, chapterStartWord);
 				markedHtml = markedResult.html;
 				imageSrcs = markedResult.imageSrcs;
+				markedWordCount = markedResult.wordCount;
 			}
 
 			// Process each paragraph block
@@ -675,14 +770,32 @@ export async function parseEpub(file: File, targetWordsPerPage = 250): Promise<P
 				}
 			}
 
+			// For image-only chapters (no text words), add placeholder entries
+			// This ensures the chapter has a unique word range and can be navigated to
+			const textWordsAdded = wordIndex - chapterStartWord;
+			if (textWordsAdded === 0 && markedWordCount > 0) {
+				// Chapter has images but no text - add placeholder word entries for each image
+				paragraphStarts.push(wordIndex);
+				for (let i = 0; i < markedWordCount; i++) {
+					words.push({
+						text: '', // Empty text - will be skipped in RSVP display
+						paragraphIndex,
+						pageIndex: currentPage,
+					});
+					wordIndex++;
+					wordsOnCurrentPage++;
+				}
+				paragraphIndex++;
+			}
+
 			// Resolve image URLs and build chapter content
 			let imageUrls = new Map<string, string>();
 			if (imageSrcs.length > 0) {
 				imageUrls = await resolveImageUrls(book, imageSrcs, spineItem.href || '');
-				if (imageUrls.size > 0) {
-					markedHtml = replaceImageUrls(markedHtml, imageUrls);
-				}
 			}
+			// Always process images to replace unresolved ones with placeholders
+			// This prevents 404 errors from external image loading attempts
+			markedHtml = replaceImageUrls(markedHtml, imageUrls);
 
 			// Store chapter content for preview
 			const wordRangeEnd = wordIndex > chapterStartWord ? wordIndex - 1 : chapterStartWord;

@@ -69,7 +69,9 @@
 		const [pageStart, pageEnd] = pageBounds;
 
 		// Find chapter containing CURRENT WORD (not page start)
-		const chapter = docWithChapters.chapterContents.find(
+		// Use findLast() to get the latest chapter when word ranges overlap
+		// (this can happen with image-only chapters that have no text words)
+		const chapter = docWithChapters.chapterContents.findLast(
 			c => wordIndex >= c.wordRange[0] && wordIndex <= c.wordRange[1]
 		);
 
@@ -157,7 +159,7 @@
 		if (!pdfDoc.chapterContents) return null;
 
 		// Find page content for current page
-		const pageContent = pdfDoc.chapterContents.find(
+		const pageContent = pdfDoc.chapterContents.findLast(
 			c => wordIndex >= c.wordRange[0] && wordIndex <= c.wordRange[1]
 		);
 

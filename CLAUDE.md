@@ -98,11 +98,19 @@ This application displays text one word at a time using the Spritz-style ORP (Op
 - Font size adjustment (default: 48px for reading word)
 - Font family selection (default: system sans-serif stack)
 
-### Persistence (localStorage)
+### Persistence
 
+**localStorage:**
 - Reading position per file (keyed by filename + file size hash)
 - User preferences (speed, theme, font settings)
 - Recently opened files list
+- Per-book preferences (hidden images)
+
+**IndexedDB:**
+- Last opened file (auto-restored on page reload)
+
+**Data Management:**
+- "Clear All Data" button in Settings to reset all stored data
 
 ## UI Layout
 

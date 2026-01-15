@@ -70,6 +70,13 @@ function createReaderStore() {
 			return;
 		}
 
+		// Skip empty words (placeholders for image-only pages)
+		if (!currentWord.text || currentWord.text.trim() === '') {
+			update(s => ({ ...s, wordIndex: s.wordIndex + 1 }));
+			scheduleNextWord();
+			return;
+		}
+
 		const duration = calculateWordDuration(
 			currentWord.text,
 			currentSettings.wpm,

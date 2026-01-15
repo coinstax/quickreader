@@ -33,3 +33,6 @@ coverage/
 
 # Playwright MCP screenshots
 .playwright-mcp/
+
+# Test files
+*.epub

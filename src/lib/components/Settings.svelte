@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { settings, currentTheme } from '../stores/settings';
 	import { THEMES, FONT_FAMILIES, MIN_FONT_SIZE, MAX_FONT_SIZE, FONT_SIZE_STEP } from '../constants';
+	import { clearAllData } from '../utils/storage';
 
 	interface Props {
 		open: boolean;
@@ -99,6 +100,26 @@
 	function handleLongWordDelayChange(event: Event) {
 		const target = event.target as HTMLInputElement;
 		settings.update(s => ({ ...s, longWordDelayMultiplier: Number(target.value) }));
+	}
+
+	// Reset data state
+	let showResetConfirm = $state(false);
+	let isResetting = $state(false);
+
+	async function handleResetData() {
+		if (!showResetConfirm) {
+			showResetConfirm = true;
+			return;
+		}
+
+		isResetting = true;
+		await clearAllData();
+		// Reload the page to reset all in-memory state
+		window.location.reload();
+	}
+
+	function cancelReset() {
+		showResetConfirm = false;
 	}
 </script>
 
@@ -260,6 +281,42 @@
 						<span>1.5x</span>
 					</div>
 					<p class="setting-description">Extra time for words with 10+ characters</p>
+				</section>
+
+				<!-- Reset All Data -->
+				<section class="setting-group setting-danger-zone">
+					<div class="setting-label">Data</div>
+					{#if showResetConfirm}
+						<p class="setting-description warning">
+							This will clear all reading progress, settings, and recent files. This cannot be undone.
+						</p>
+						<div class="button-row">
+							<button
+								class="btn-cancel"
+								onclick={cancelReset}
+								disabled={isResetting}
+								style:border-color={theme.guideLines}
+							>
+								Cancel
+							</button>
+							<button
+								class="btn-danger"
+								onclick={handleResetData}
+								disabled={isResetting}
+							>
+								{isResetting ? 'Clearing...' : 'Yes, Clear All'}
+							</button>
+						</div>
+					{:else}
+						<button
+							class="btn-reset"
+							onclick={handleResetData}
+							style:border-color={theme.guideLines}
+						>
+							Clear All Data
+						</button>
+						<p class="setting-description">Reset settings, clear reading progress, and remove recent files</p>
+					{/if}
 				</section>
 			</div>
 		</div>
@@ -458,6 +515,72 @@
 		font-size: 0.85rem;
 		opacity: 0.7;
 		line-height: 1.4;
+	}
+
+	.setting-description.warning {
+		color: #ff6b6b;
+		opacity: 1;
+	}
+
+	.setting-danger-zone {
+		margin-top: 2rem;
+		padding-top: 1.5rem;
+		border-top: 1px solid rgba(128, 128, 128, 0.2);
+	}
+
+	.button-row {
+		display: flex;
+		gap: 0.75rem;
+		margin-top: 0.75rem;
+	}
+
+	.btn-reset,
+	.btn-cancel,
+	.btn-danger {
+		padding: 0.6rem 1rem;
+		border-radius: 6px;
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.btn-reset {
+		background: transparent;
+		border: 1px solid;
+		color: inherit;
+	}
+
+	.btn-reset:hover {
+		background: rgba(128, 128, 128, 0.1);
+	}
+
+	.btn-cancel {
+		background: transparent;
+		border: 1px solid;
+		color: inherit;
+		flex: 1;
+	}
+
+	.btn-cancel:hover {
+		background: rgba(128, 128, 128, 0.1);
+	}
+
+	.btn-danger {
+		background: #dc3545;
+		border: 1px solid #dc3545;
+		color: white;
+		flex: 1;
+	}
+
+	.btn-danger:hover:not(:disabled) {
+		background: #c82333;
+		border-color: #c82333;
+	}
+
+	.btn-danger:disabled,
+	.btn-cancel:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	@media (max-width: 600px) {
